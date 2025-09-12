@@ -31,6 +31,60 @@ Import-Module ActiveDirectory -SkipEditionCheck -ErrorAction Stop
 # Dot-source the privilege/ACL helpers
 . (Join-Path $PSScriptRoot 'set_privs.psm1')
 
+# ---------- Helper Functions ----------
+function Set-RealisticFolderTimestamps {
+  param(
+    [Parameter(Mandatory)][string]$Path,
+    [string]$FolderType = "Standard"
+  )
+  
+  $rand = New-Object System.Random
+  $now = Get-Date
+  
+  # Different timestamp patterns based on folder type
+  switch ($FolderType) {
+    "Year" {
+      # Year folders: created at start of year, modified throughout
+      $year = [int](Split-Path $Path -Leaf)
+      $created = Get-Date "$year-01-01"
+      $modified = $created.AddDays($rand.Next(0, 365))
+      $accessed = $modified.AddDays($rand.Next(0, 30))
+    }
+    "Project" {
+      # Project folders: created 1-3 years ago, modified recently
+      $created = $now.AddDays(-$rand.Next(365, 1095))
+      $modified = $now.AddDays(-$rand.Next(0, 90))
+      $accessed = $modified.AddDays($rand.Next(0, [Math]::Min(7, ($now - $modified).Days)))
+    }
+    "Archive" {
+      # Archive folders: old creation, infrequent access
+      $created = $now.AddDays(-$rand.Next(1095, 2190))
+      $modified = $created.AddDays($rand.Next(0, [Math]::Min(365, ($now - $created).Days)))
+      $accessed = $modified.AddDays($rand.Next(0, [Math]::Min(180, ($now - $modified).Days)))
+    }
+    "Duplicate" {
+      # Duplicate folders: created when original was copied
+      $created = $now.AddDays(-$rand.Next(30, 365))
+      $modified = $created.AddDays($rand.Next(0, [Math]::Min(30, ($now - $created).Days)))
+      $accessed = $modified.AddDays($rand.Next(0, [Math]::Min(14, ($now - $modified).Days)))
+    }
+    default {
+      # Standard folders: mixed ages (ensure no future dates)
+      $created = $now.AddDays(-$rand.Next(365, 1095))  # 1-3 years ago
+      $modified = $created.AddDays($rand.Next(0, [Math]::Min(365, ($now - $created).Days)))
+      $accessed = $modified.AddDays($rand.Next(0, [Math]::Min(30, ($now - $modified).Days)))
+    }
+  }
+  
+  try {
+    [IO.Directory]::SetCreationTime($Path, $created)
+    [IO.Directory]::SetLastWriteTime($Path, $modified)
+    [IO.Directory]::SetLastAccessTime($Path, $accessed)
+  } catch {
+    # Silently continue if timestamp setting fails
+  }
+}
+
 # ---------- Helpers ----------
 function Ensure-Folder {
   param([Parameter(Mandatory)][string]$Path)
@@ -137,9 +191,22 @@ Grant-FsAccess -Path $Root -Identity $allEmployees -Rights 'ReadAndExecute' -Inh
 # ---------- Department trees ----------
 $rand = New-Object System.Random
 
+# ---------- Cross-department folders ----------
+$crossDeptFolders = @('Shared','Inter-Department','External','Common','Cross-Functional','Collaboration')
+foreach ($crossDept in $crossDeptFolders) {
+  if ($rand.Next(0,3) -eq 0) {  # 33% chance per cross-dept folder
+    $crossPath = Join-Path $Root $crossDept
+    Ensure-Folder -Path $crossPath
+    Grant-FsAccess -Path $crossPath -Identity $allEmployees -Rights 'Modify' -BreakInheritance -CopyInheritance
+    Grant-FsAccess -Path $crossPath -Identity "$Domain\Domain Admins" -Rights 'FullControl'
+    Set-RealisticFolderTimestamps -Path $crossPath -FolderType "Standard"
+  }
+}
+
 foreach ($d in $Departments) {
   $deptPath = Join-Path $Root $d
   Ensure-Folder -Path $deptPath
+  Set-RealisticFolderTimestamps -Path $deptPath -FolderType "Standard"
 
   $principals = Resolve-DeptPrincipals -Dept $d -Domain $Domain -PreferDomainLocal:$UseDomainLocal
 
@@ -152,8 +219,8 @@ foreach ($d in $Departments) {
   Grant-FsAccess -Path $deptPath -Identity $principals.RO     -Rights 'ReadAndExecute'
   Grant-FsAccess -Path $deptPath -Identity $principals.Owners -Rights 'FullControl'
 
-  # Standard substructure
-  $subs = @('Projects','Archive','Temp','Sensitive','Vendors')
+  # Enhanced realistic substructure
+  $subs = @('Current','Drafts','Final','Backup','Old','Projects','Archive','Temp','Sensitive','Vendors')
   foreach ($s in $subs) {
     $p = Join-Path $deptPath $s
     Ensure-Folder -Path $p
@@ -164,6 +231,10 @@ foreach ($d in $Departments) {
     } else {
       Grant-FsAccess -Path $p -Identity $principals.RW -Rights 'Modify'
     }
+    
+    # Set realistic timestamps based on folder type
+    $folderType = if ($s -eq 'Archive') { "Archive" } else { "Standard" }
+    Set-RealisticFolderTimestamps -Path $p -FolderType $folderType
 
     if ($s -eq 'Sensitive') {
       # Remove broad read at NTFS on Sensitive (if it slipped in), then ThisFolderOnly scoped rights
@@ -179,6 +250,103 @@ foreach ($d in $Departments) {
         @{id=$principals.RO;     rights='ReadAndExecute'}
       )) {
         if ($tuple.id) { Grant-FsAccess -Path $p -Identity $tuple.id -Rights $tuple.rights -ThisFolderOnly }
+      }
+    }
+  }
+
+  # Add year-based organization (2020-2025)
+  $years = @('2020','2021','2022','2023','2024','2025')
+  foreach ($year in $years) {
+    if ($rand.Next(0,3) -eq 0) {  # 33% chance per year
+      $yearPath = Join-Path $deptPath $year
+      Ensure-Folder -Path $yearPath
+      Grant-FsAccess -Path $yearPath -Identity $principals.RW -Rights 'Modify'
+      Set-RealisticFolderTimestamps -Path $yearPath -FolderType "Year"
+    }
+  }
+
+  # Add project-specific folders with realistic names
+  $projectNames = @('Project_Alpha','Project_Beta','Project_Gamma','Project_Delta','Project_Echo',
+                   'Q4_2024_Initiatives','Annual_Review_2024','Budget_Planning_2025','Compliance_Audit_2024',
+                   'Digital_Transformation','Infrastructure_Upgrade','Security_Assessment','Process_Improvement')
+  
+  foreach ($proj in $projectNames) {
+    if ($rand.Next(0,4) -eq 0) {  # 25% chance per project
+      $projPath = Join-Path $deptPath $proj
+      Ensure-Folder -Path $projPath
+      Grant-FsAccess -Path $projPath -Identity $principals.RW -Rights 'Modify'
+      Set-RealisticFolderTimestamps -Path $projPath -FolderType "Project"
+      
+      # Add subfolders to some projects (deep nesting)
+      if ($rand.Next(0,3) -eq 0) {
+        $projSubs = @('Planning','Execution','Review','Documentation','Resources')
+        foreach ($projSub in $projSubs) {
+          if ($rand.Next(0,2) -eq 0) {  # 50% chance per subfolder
+            $projSubPath = Join-Path $projPath $projSub
+            Ensure-Folder -Path $projSubPath
+            Grant-FsAccess -Path $projSubPath -Identity $principals.RW -Rights 'Modify'
+            Set-RealisticFolderTimestamps -Path $projSubPath -FolderType "Standard"
+            
+            # Even deeper nesting for some folders
+            if ($rand.Next(0,4) -eq 0) {  # 25% chance for deeper nesting
+              $deepSubs = @('Draft','Final','Archive','Backup')
+              foreach ($deepSub in $deepSubs) {
+                if ($rand.Next(0,2) -eq 0) {
+                  $deepPath = Join-Path $projSubPath $deepSub
+                  Ensure-Folder -Path $deepPath
+                  Grant-FsAccess -Path $deepPath -Identity $principals.RW -Rights 'Modify'
+                  Set-RealisticFolderTimestamps -Path $deepPath -FolderType "Standard"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  # Add duplicate structures (multiple versions)
+  if ($rand.Next(0,3) -eq 0) {  # 33% chance for duplicates
+    $duplicateNames = @('_Backup','_Old','_Archive','_Copy','_v2','_2024','_Legacy')
+    foreach ($dup in $duplicateNames) {
+      if ($rand.Next(0,2) -eq 0) {  # 50% chance per duplicate type
+        $dupPath = Join-Path $deptPath "${d}${dup}"
+        Ensure-Folder -Path $dupPath
+        Grant-FsAccess -Path $dupPath -Identity $principals.RW -Rights 'Modify'
+        Set-RealisticFolderTimestamps -Path $dupPath -FolderType "Duplicate"
+      }
+    }
+  }
+
+  # Add naming convention chaos (useful for Panzura scanning)
+  if ($rand.Next(0,4) -eq 0) {  # 25% chance for naming chaos
+    $namingChaos = @(
+      # Legacy naming conventions
+      "OLD_${d}", "LEGACY_${d}", "DEPRECATED_${d}",
+      # Mixed case variations
+      "${d}_MIXED", "${d}_lower", "${d}_UPPER",
+      # Special character variations
+      "${d}-Dept", "${d}_Dept", "${d}.Dept", "${d} Dept"
+    )
+    
+    # Add department-specific abbreviation variations
+    switch ($d) {
+      "HR" { $namingChaos += @("HumanResources", "H.R.", "Human_Resources") }
+      "IT" { $namingChaos += @("InformationTechnology", "I.T.", "InfoTech") }
+      "Marketing" { $namingChaos += @("MKT", "MKTG", "Marketing_Dept") }
+      "Finance" { $namingChaos += @("FIN", "FINANCE", "Financial") }
+      "Engineering" { $namingChaos += @("ENG", "ENGINEERING", "Engineering_Dept") }
+      "Sales" { $namingChaos += @("SALES", "Sales_Dept", "Sales_Team") }
+      "Ops" { $namingChaos += @("OPS", "OPERATIONS", "Ops_Dept") }
+      "Legal" { $namingChaos += @("LEGAL", "Legal_Dept", "Legal_Team") }
+    }
+    
+    foreach ($chaos in $namingChaos) {
+      if ($chaos -and $rand.Next(0,3) -eq 0) {  # 33% chance per chaos type
+        $chaosPath = Join-Path $Root $chaos
+        Ensure-Folder -Path $chaosPath
+        Grant-FsAccess -Path $chaosPath -Identity $principals.RW -Rights 'Modify'
+        Set-RealisticFolderTimestamps -Path $chaosPath -FolderType "Standard"
       }
     }
   }

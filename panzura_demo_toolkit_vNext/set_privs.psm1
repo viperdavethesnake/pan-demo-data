@@ -40,7 +40,21 @@ namespace Win32 {
 
 function Ensure-AdvApiType {
   if (-not ("Win32.AdvApi" -as [type])) {
-    Add-Type -TypeDefinition $__priv_src -Language CSharp
+    try {
+      # Try to prevent notepad from opening by using a different compilation approach
+      # Use a temporary directory that won't trigger file associations
+      $tempDir = Join-Path $env:TEMP "PowerShell_AddType_$(Get-Random)"
+      New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+      try {
+        Add-Type -TypeDefinition $__priv_src -Language CSharp -ErrorAction Stop
+      } finally {
+        # Clean up the temporary directory
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+      }
+    } catch {
+      Write-Warning "Failed to compile C# type: $($_.Exception.Message)"
+      throw
+    }
   }
 }
 
