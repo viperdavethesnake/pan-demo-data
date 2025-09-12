@@ -1,0 +1,69 @@
+PS S:\scripts\scripts_new> .\create_folders.ps1 -UseDomainLocal
+Folder tree created & ACLed at S:\Shared
+Share: \\PLAB-WIN-FS01\FS01-Shared
+
+Name        ScopeName AccountName            AccessControlType AccessRight
+----        --------- -----------            ----------------- -----------
+FS01-Shared *         BUILTIN\Administrators Allow             Full
+FS01-Shared *         PLAB\Domain Admins     Allow             Full
+FS01-Shared *         PLAB\GG_AllEmployees   Allow             Read
+
+PS S:\scripts\scripts_new> .\set_share_acls.ps1
+
+Name        ScopeName AccountName            AccessControlType AccessRight
+----        --------- -----------            ----------------- -----------
+FS01-Shared *         BUILTIN\Administrators Allow             Full
+FS01-Shared *         PLAB\GG_AllEmployees   Allow             Read
+FS01-Shared *         PLAB\Domain Admins     Allow             Full
+FS01-Shared *         BUILTIN\Administrators Allow             Full
+FS01-Shared *         PLAB\Domain Admins     Allow             Full
+FS01-Shared *         PLAB\GG_AllEmployees   Allow             Read
+FS01-Shared *         BUILTIN\Administrators Allow             Full
+FS01-Shared *         PLAB\Domain Admins     Allow             Full
+FS01-Shared *         PLAB\GG_AllEmployees   Allow             Read
+
+
+Name        ScopeName AccountName            AccessControlType AccessRight
+----        --------- -----------            ----------------- -----------
+FS01-Shared *         BUILTIN\Administrators Allow             Full
+FS01-Shared *         PLAB\Domain Admins     Allow             Full
+FS01-Shared *         PLAB\GG_AllEmployees   Allow             Read
+
+PS S:\scripts\scripts_new>
+PS S:\scripts\scripts_new> .\create_files.ps1 -MaxFiles 1000
+InvalidOperation: S:\scripts\scripts_new\create_files.ps1:212
+Line |
+ 212 |  … eptPrefixes = if ($dept -and $DeptPrefixes.ContainsKey($dept)) { $Dep …
+     |                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Method invocation failed because [System.String] does not contain a method named 'ContainsKey'.
+WARNING: Owner set failed on S:\Shared\Engineering\Meeting-note-0607.docx: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Project-invoice-8635.doc: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Temp-img-8271.png: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Document-img-6133.csv: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Temp-mail-5137.pdf: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Data-note-3850.xlsx: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\File-note-8549.xls: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Temp-note-7448.docx: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Archive-data-6012.pdf: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Project-export-8506.docx: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Meeting-mail-5611.xlsx: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\Engineering\Report-data-9332.csv: Cannot find an object with identity: 'PLAB\GG_Engineering' under: 'DC=plab,DC=local'.
+InvalidOperation: S:\scripts\scripts_new\create_files.ps1:212
+Line |
+ 212 |  … eptPrefixes = if ($dept -and $DeptPrefixes.ContainsKey($dept)) { $Dep …
+     |                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Method invocation failed because [System.String] does not contain a method named 'ContainsKey'.
+InvalidOperation: S:\scripts\scripts_new\create_files.ps1:212
+Line |
+ 212 |  … eptPrefixes = if ($dept -and $DeptPrefixes.ContainsKey($dept)) { $Dep …
+     |                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Method invocation failed because [System.String] does not contain a method named 'ContainsKey'.
+WARNING: Owner set failed on S:\Shared\HR\Archive-data-9074.pdf: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\HR\Data-img-9825.docx: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\HR\Data-data-8103.xlsx: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\HR\Project-img-5055.xlsx: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\HR\Meeting-doc-8512.pdf: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\HR\Archive-invoice-6237.xls: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+WARNING: Owner set failed on S:\Shared\HR\Project-report-8673.csv: Cannot find an object with identity: 'PLAB\GG_HR' under: 'DC=plab,DC=local'.
+PS S:\scripts\scripts_new> notepad .\board.txt
+PS S:\scripts\scripts_new>

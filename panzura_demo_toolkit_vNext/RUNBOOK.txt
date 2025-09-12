@@ -1,0 +1,17 @@
+# Runbook (copy/paste)
+
+.\pre_flight.ps1
+.\ad_populator.ps1 -BaseOUName DemoCorp -UsersPerDeptMin 8 -UsersPerDeptMax 75 -CreateAccessTiers -CreateAGDLP -ProjectsPerDeptMin 1 -ProjectsPerDeptMax 4 -VerboseSummary
+.\create_folders.ps1 -UseDomainLocal
+.\set_share_acls.ps1
+.\create_files.ps1 -MaxFiles 10000 -DatePreset RecentSkew
+.\demo_report.ps1 -ShowSamples -SampleUsers 5
+
+# Reset and redo
+.\ad_reset.ps1 -BaseOUName DemoCorp -DoUsers -DoGroups -DoOUs -PurgeBySamPrefixes -Confirm:$false -VerboseSummary
+.\ad_populator.ps1 -BaseOUName DemoCorp -UsersPerDeptMin 8 -UsersPerDeptMax 75 -CreateAccessTiers -CreateAGDLP -ProjectsPerDeptMin 1 -ProjectsPerDeptMax 4 -VerboseSummary
+.\create_folders.ps1 -UseDomainLocal
+.\set_share_acls.ps1
+.\create_files.ps1 -MaxFiles 10000 -DatePreset Uniform -MinDate (Get-Date).AddYears(-10) -MaxDate (Get-Date)
+.\demo_report.ps1 -ShowSamples -SampleUsers 5
+
