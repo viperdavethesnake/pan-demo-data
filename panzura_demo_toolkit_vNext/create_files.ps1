@@ -163,6 +163,8 @@ function Get-RandomDate {
     if (-not $result -or $result -eq [datetime]::MinValue) { 
       $result = [datetime]::UtcNow 
     }
+    
+    
     return $result
   } catch {
     # Fallback to current time if anything goes wrong
@@ -170,19 +172,21 @@ function Get-RandomDate {
   }
 }
 
-function Apply-Timestamps([string]$Path,[Nullable[datetime]]$BaseTime){
+function Apply-Timestamps([string]$Path,[datetime]$BaseTime){
   try {
-    # Ensure we have a valid BaseTime - convert to regular datetime
-    $baseDateTime = if ($BaseTime -and $BaseTime.HasValue) { $BaseTime.Value } else { Get-Date }
+    # Use the BaseTime directly - it should be a valid datetime from Get-RandomDate
+    $baseDateTime = $BaseTime
     
     # Ensure baseDateTime is valid
     if (-not $baseDateTime -or $baseDateTime -eq [datetime]::MinValue) {
       $baseDateTime = Get-Date
     }
 
-    $ct = $baseDateTime.AddMinutes(-($rnd.Next(0, 4320)))  # up to 3 days earlier
-    $wt = $baseDateTime.AddMinutes($rnd.Next(0, 1440))     # within next 24h
-    $at = $wt.AddMinutes($rnd.Next(0, 2880))               # up to 2 days after
+    # Use the actual generated date as the base, with realistic small offsets
+    # The BaseTime is already the target date from Get-RandomDate, so we just add small variations
+    $ct = $baseDateTime.AddMinutes(-($rnd.Next(0, 60)))   # created up to 1h earlier
+    $wt = $baseDateTime.AddMinutes($rnd.Next(0, 120))     # modified up to 2h later
+    $at = $wt.AddMinutes($rnd.Next(0, 240))               # accessed up to 4h after modification
 
     [IO.File]::SetCreationTime($Path, $ct)
     [IO.File]::SetLastWriteTime($Path, $wt)
@@ -244,8 +248,14 @@ foreach ($dir in $folders) {
   $dept  = if ($parts.Length -gt 0 -and $parts[0]) { $parts[0] } else { $null }
   $prefixes = if ($dept -and $DeptPrefixMap.ContainsKey($dept)) { $DeptPrefixMap[$dept] } else { $DeptPrefixMap['General'] }
 
-  $n = $rnd.Next(8,90)  # messy count per folder
-  for ($i=0; $i -lt $n; $i++) {
+  # Calculate files per folder based on MaxFiles and remaining folders
+  $remainingFolders = $folders.Count - $folderIdx + 1
+  $remainingFiles = if ($MaxFiles) { $MaxFiles - $created } else { 40 }
+  $filesPerFolder = if ($remainingFiles -gt 0 -and $remainingFolders -gt 0) { 
+    [Math]::Max(1, [Math]::Min($remainingFiles, $rnd.Next(1, [Math]::Min(10, $remainingFiles + 1))))
+  } else { 0 }
+  
+  for ($i=0; $i -lt $filesPerFolder; $i++) {
     if ($MaxFiles -and $created -ge $MaxFiles) { break }
 
     $ext  = Get-WeightedExt $dept
