@@ -238,10 +238,59 @@ foreach ($dir in $folders) {
 
   # Folder clutter (optional)
   if ($Clutter) {
-    if ($rnd.NextDouble() -lt 0.25) { Set-Content -Path (Join-Path $dir.FullName 'desktop.ini') -Value "[.ShellClassInfo]" -Encoding ASCII -Force }
-    if ($rnd.NextDouble() -lt 0.15) { New-Item -ItemType File -Path (Join-Path $dir.FullName 'Thumbs.db') -Force | Out-Null }
-    if ($rnd.NextDouble() -lt 0.12) { New-Item -ItemType File -Path (Join-Path $dir.FullName ("~$temp{0:000}.tmp" -f $rnd.Next(0,999))) -Force | Out-Null }
-    if ($rnd.NextDouble() -lt 0.05) { Set-Content -Path (Join-Path $dir.FullName ("link-{0}.url" -f $rnd.Next(1000,9999))) -Value "[InternetShortcut]`nURL=file://\\server\missing\doc.pdf" -Encoding ASCII }
+    if ($rnd.NextDouble() -lt 0.25) { 
+      $clutterFile = Join-Path $dir.FullName 'desktop.ini'
+      Set-Content -Path $clutterFile -Value "[.ShellClassInfo]" -Encoding ASCII -Force
+      # Apply realistic timestamps to clutter files
+      try {
+        $randParams = @{ Mode = $DatePreset; Bias = $RecentBias }
+        if ($PSBoundParameters.ContainsKey('MinDate')) { $randParams.Min = $MinDate }
+        if ($PSBoundParameters.ContainsKey('MaxDate')) { $randParams.Max = $MaxDate }
+        $baseTime = Get-RandomDate @randParams
+        Apply-Timestamps -Path $clutterFile -BaseTime $baseTime
+      } catch {
+        Apply-Timestamps -Path $clutterFile -BaseTime (Get-Date).AddDays(-$rnd.Next(1, 365))
+      }
+    }
+    if ($rnd.NextDouble() -lt 0.15) { 
+      $clutterFile = Join-Path $dir.FullName 'Thumbs.db'
+      New-Item -ItemType File -Path $clutterFile -Force | Out-Null
+      try {
+        $randParams = @{ Mode = $DatePreset; Bias = $RecentBias }
+        if ($PSBoundParameters.ContainsKey('MinDate')) { $randParams.Min = $MinDate }
+        if ($PSBoundParameters.ContainsKey('MaxDate')) { $randParams.Max = $MaxDate }
+        $baseTime = Get-RandomDate @randParams
+        Apply-Timestamps -Path $clutterFile -BaseTime $baseTime
+      } catch {
+        Apply-Timestamps -Path $clutterFile -BaseTime (Get-Date).AddDays(-$rnd.Next(1, 365))
+      }
+    }
+    if ($rnd.NextDouble() -lt 0.12) { 
+      $clutterFile = Join-Path $dir.FullName ("~$temp{0:000}.tmp" -f $rnd.Next(0,999))
+      New-Item -ItemType File -Path $clutterFile -Force | Out-Null
+      try {
+        $randParams = @{ Mode = $DatePreset; Bias = $RecentBias }
+        if ($PSBoundParameters.ContainsKey('MinDate')) { $randParams.Min = $MinDate }
+        if ($PSBoundParameters.ContainsKey('MaxDate')) { $randParams.Max = $MaxDate }
+        $baseTime = Get-RandomDate @randParams
+        Apply-Timestamps -Path $clutterFile -BaseTime $baseTime
+      } catch {
+        Apply-Timestamps -Path $clutterFile -BaseTime (Get-Date).AddDays(-$rnd.Next(1, 365))
+      }
+    }
+    if ($rnd.NextDouble() -lt 0.05) { 
+      $clutterFile = Join-Path $dir.FullName ("link-{0}.url" -f $rnd.Next(1000,9999))
+      Set-Content -Path $clutterFile -Value "[InternetShortcut]`nURL=file://\\server\missing\doc.pdf" -Encoding ASCII
+      try {
+        $randParams = @{ Mode = $DatePreset; Bias = $RecentBias }
+        if ($PSBoundParameters.ContainsKey('MinDate')) { $randParams.Min = $MinDate }
+        if ($PSBoundParameters.ContainsKey('MaxDate')) { $randParams.Max = $MaxDate }
+        $baseTime = Get-RandomDate @randParams
+        Apply-Timestamps -Path $clutterFile -BaseTime $baseTime
+      } catch {
+        Apply-Timestamps -Path $clutterFile -BaseTime (Get-Date).AddDays(-$rnd.Next(1, 365))
+      }
+    }
   }
 
   $parts = $dir.FullName.Substring($Root.Length).Trim('\').Split('\')
@@ -271,6 +320,46 @@ foreach ($dir in $folders) {
       $kb = Get-RealisticKB $dept
       New-RealisticFile -Path $file -KB $kb
 
+      # Set file attributes BEFORE timestamps to avoid LastWriteTime updates
+      Set-RandomAttributes -Path $file
+
+      # Ownership realism (optional) - MUST be before timestamps to avoid LastWriteTime updates
+      if ($UseAD -and $dept -and $UserOwnership) {
+        try {
+          $Domain = (Get-ADDomain).NetBIOSName
+          $rng = $rnd.NextDouble()
+          
+          # Handle cross-department and naming chaos folders
+          $actualDept = $dept
+          if ($dept -in @('Collaboration','Common','External','Inter-Department','Cross-Functional','Shared')) {
+            # Cross-department folders - use AllEmployees group
+            $actualDept = 'AllEmployees'
+          } elseif ($dept -match '^(OLD_|LEGACY_|DEPRECATED_|.*_MIXED|.*_lower|.*_UPPER|.*-Dept|.*_Dept|.*\.Dept|.* Dept|HumanResources|H\.R\.|H\.R|Human_Resources|InformationTechnology|I\.T\.|InfoTech|MKT|MKTG|Marketing_Dept|FIN|FINANCE|Financial|ENG|ENGINEERING|Engineering_Dept|SALES|Sales_Dept|Sales_Team|OPS|OPERATIONS|Ops_Dept|LEGAL|Legal_Dept|Legal_Team)') {
+            # Naming chaos folders - extract the base department name
+            $actualDept = $dept -replace '^(OLD_|LEGACY_|DEPRECATED_)', '' -replace '(_MIXED|_lower|_UPPER|-Dept|_Dept|\.Dept| Dept)$', '' -replace '^(HumanResources|H\.R\.|H\.R|Human_Resources)$', 'HR' -replace '^(InformationTechnology|I\.T\.|InfoTech)$', 'IT' -replace '^(MKT|MKTG|Marketing_Dept)$', 'Marketing' -replace '^(FIN|FINANCE|Financial)$', 'Finance' -replace '^(ENG|ENGINEERING|Engineering_Dept)$', 'Engineering' -replace '^(SALES|Sales_Dept|Sales_Team)$', 'Sales' -replace '^(OPS|OPERATIONS|Ops_Dept)$', 'Ops' -replace '^(LEGAL|Legal_Dept|Legal_Team)$', 'Legal'
+          }
+          
+          if ($rng -lt 0.18) {
+            # ~18% owned by random dept user
+            $prefix = $actualDept.Substring(0, [Math]::Min(4,$actualDept.Length)).ToLower()
+            $users = Get-ADUser -LDAPFilter ("(sAMAccountName={0}*)" -f $prefix) -SearchBase (Get-ADDomain).DistinguishedName -ErrorAction SilentlyContinue
+            if ($users) {
+              $sam = ($users | Get-Random).SamAccountName
+              try { Set-OwnerAndGroup -Path $file -Owner ("{0}\{1}" -f $Domain, $sam) } catch {}
+            }
+          } else {
+            # rest owned by GG_<Dept> or GG_AllEmployees for cross-department
+            $groupName = if ($actualDept -eq 'AllEmployees') { 'GG_AllEmployees' } else { "GG_{0}" -f $actualDept }
+            try { Set-OwnerAndGroup -Path $file -Owner ("{0}\{1}" -f $Domain, $groupName) } catch {}
+          }
+        } catch {}
+      }
+
+      # ADS creation - MUST be before timestamps to avoid LastWriteTime updates
+      if ($ADS -and ($rnd.NextDouble() -lt 0.05)) {
+        Add-ADS -Path $file -Name "meta.tag" -Content ("dept={0};created={1:o}" -f $dept,(Get-Date))
+      }
+
       if ($Touch) {
         try {
           # Build param splat only when bounds are present (avoid null->datetime conversion)
@@ -281,34 +370,10 @@ foreach ($dir in $folders) {
           Apply-Timestamps -Path $file -BaseTime $baseTime
         } catch {
           Write-Verbose ("Timestamp generation failed for {0}: {1}" -f $file, $_.Exception.Message)
-          # Fallback to current time
-          Apply-Timestamps -Path $file -BaseTime (Get-Date)
+          # Fallback to a realistic old date instead of current time
+          $fallbackDate = (Get-Date).AddDays(-$rnd.Next(365, 1095))  # 1-3 years ago
+          Apply-Timestamps -Path $file -BaseTime $fallbackDate
         }
-      }
-
-      # Ownership realism (optional)
-      if ($UseAD -and $dept -and $UserOwnership) {
-        try {
-          $Domain = (Get-ADDomain).NetBIOSName
-          $rng = $rnd.NextDouble()
-          if ($rng -lt 0.18) {
-            # ~18% owned by random dept user
-            $prefix = $dept.Substring(0, [Math]::Min(4,$dept.Length)).ToLower()
-            $users = Get-ADUser -LDAPFilter ("(sAMAccountName={0}*)" -f $prefix) -SearchBase (Get-ADDomain).DistinguishedName -ErrorAction SilentlyContinue
-            if ($users) {
-              $sam = ($users | Get-Random).SamAccountName
-              try { Set-OwnerAndGroup -Path $file -Owner ("{0}\{1}" -f $Domain, $sam) } catch {}
-            }
-          } else {
-            # rest owned by GG_<Dept>
-            try { Set-OwnerAndGroup -Path $file -Owner ("{0}\GG_{1}" -f $Domain, $dept) } catch {}
-          }
-        } catch {}
-      }
-
-      Set-RandomAttributes -Path $file
-      if ($ADS -and ($rnd.NextDouble() -lt 0.05)) {
-        Add-ADS -Path $file -Name "meta.tag" -Content ("dept={0};created={1:o}" -f $dept,(Get-Date))
       }
 
       $created++
