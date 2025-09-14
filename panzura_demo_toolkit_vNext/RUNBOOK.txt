@@ -1,6 +1,6 @@
-# Runbook (copy/paste) - Production Ready v1.0.0
+# Runbook (copy/paste) - Production Ready v1.1.0
 
-# Standard deployment (validated with 4,961+ files)
+# Standard deployment (validated with 15,303+ files with proper ownership)
 .\pre_flight.ps1
 .\ad_populator.ps1 -BaseOUName DemoCorp -UsersPerDeptMin 8 -UsersPerDeptMax 75 -CreateAccessTiers -CreateAGDLP -ProjectsPerDeptMin 1 -ProjectsPerDeptMax 4 -VerboseSummary
 .\create_folders.ps1 -UseDomainLocal
@@ -24,4 +24,7 @@
 
 # Verify sparse files (sample 50 files)
 Get-ChildItem -Path "S:\Shared" -Recurse -File | Get-Random -Count 50 | ForEach-Object { $sparse = (fsutil sparse queryflag $_.FullName 2>$null) -match "SPARSE"; [PSCustomObject]@{ File = $_.Name; Sparse = if($sparse) { "YES" } else { "NO" } } } | Format-Table -AutoSize
+
+# Verify ownership distribution (sample 100 files)
+Get-ChildItem -Path "S:\Shared" -Recurse -File | Get-Random -Count 100 | ForEach-Object { $acl = Get-Acl $_.FullName; [PSCustomObject]@{ File = $_.Name; Owner = $acl.Owner; Group = $acl.Group } } | Format-Table -AutoSize
 

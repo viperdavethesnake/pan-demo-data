@@ -1,0 +1,137 @@
+**********************
+PowerShell transcript start
+Start time: 20250914142642
+Username: PLAB\Administrator
+RunAs User: PLAB\Administrator
+Configuration Name: 
+Machine: PLAB-WIN-FS01 (Microsoft Windows NT 10.0.20348.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll -noexit -command try { . "c:\Users\Administrator.PLAB\AppData\Local\Programs\cursor\resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1" } catch {}
+Process ID: 3828
+PSVersion: 7.5.3
+PSEdition: Core
+GitCommitId: 7.5.3
+OS: Microsoft Windows 10.0.20348
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+Transcript started, output file is C:\Users\Administrator.PLAB\Documents\cursor\pan-demo-data\panzura_demo_toolkit_vNext\logs\ad_populator_20250914_142642.log
+Creating additional enterprise groups...
+  ✓ Created group: SecurityTeam
+  ✓ Created group: AuditTeam
+  ✓ Created group: Compliance
+  ✓ Created group: DataStewards
+  ✓ Created group: ISOAdmins
+  ✓ Created group: BackupOps
+  ✓ Created group: DisasterRecovery
+  ✓ Created group: PrivilegedIT
+  ✓ Created group: WebTeam
+  ✓ Created group: SysAdmins
+  ✓ Created group: DesktopSupport
+  ✓ Created group: MobileUsers
+  ✓ Created group: RemoteOnly
+  ✓ Created group: VPNUsers
+  ✓ Created group: AllStaff
+  ✓ Created group: AllContractors
+  ✓ Created group: ExternalVendors
+  ✓ Created group: Alumni
+  ✓ Created group: OnLeave
+  ✓ Created group: Office_NYC
+  ✓ Created group: Office_LA
+  ✓ Created group: Office_Chicago
+  ✓ Created group: Office_Austin
+  ✓ Created group: Remote_Workers
+  ✓ Created group: Field_Staff
+  ✓ Created group: ObsoleteStaff
+  ✓ Created group: RetiredGroups
+  ✓ Created group: LegacyApps
+  ✓ Created group: OldFinance
+  ✓ Created group: OldSales
+  ✓ Created group: Projects2010
+  ✓ Created group: Accounting2013
+  ✓ Created group: Sales2009
+  Created 25 users so far...
+  Created 50 users so far...
+  Created 75 users so far...
+  Created 100 users so far...
+  Created 125 users so far...
+  Created 150 users so far...
+  Created 175 users so far...
+  Created 200 users so far...
+  Created 225 users so far...
+  Created 250 users so far...
+  Created 275 users so far...
+  Created 300 users so far...
+  Created 325 users so far...
+  Created 350 users so far...
+  Created 375 users so far...
+Creating service accounts...
+  ✓ Created service account: sql_service (added to 2 groups)
+  ✓ Created service account: backup_svc (added to 2 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add web_app_pool to group IT
+  ✓ Created service account: web_app_pool (added to 1 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add monitoring_svc to group IT
+  ✓ Created service account: monitoring_svc (added to 1 groups)
+  ✓ Created service account: ad_sync_svc (added to 2 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add file_share_svc to group IT
+  ✓ Created service account: file_share_svc (added to 1 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add print_svc to group IT
+  ✓ Created service account: print_svc (added to 1 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'Sales' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add crm_service to group Sales
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add crm_service to group IT
+  ✓ Created service account: crm_service (added to 0 groups)
+
+📊 User details exported to: C:\Users\Administrator.PLAB\Documents\cursor\pan-demo-data\panzura_demo_toolkit_vNext\logs\users_created_20250914_142753.csv
+
+🔍 Running validation checks...
+  ✓ Found 96 groups
+  ✓ Found 192 users
+  ✓ Found 2 service accounts
+  ✓ GG_AllEmployees has 385 members
+
+=== ENHANCED AD POPULATOR SUMMARY ===
+Users created (new this run): 385
+User creation errors: 0
+Service accounts created: 8
+Service accounts existed: 0
+Service account errors: 0
+Additional enterprise groups: 30
+Total groups validated: 96
+Total users validated: 192
+Service accounts validated: 2
+Departments: Finance, HR, Engineering, Sales, Legal, IT, Ops, Marketing, R&D, QA, Facilities, Procurement, Logistics, Training, Support
+Core groups: GG_AllEmployees, GG_Finance, GG_HR, GG_Engineering, GG_Sales, GG_Legal, GG_IT, GG_Ops, GG_Marketing, GG_R&D, GG_QA, GG_Facilities, GG_Procurement, GG_Logistics, GG_Training, GG_Support
+Access tiers created: GG_Finance_RO, GG_HR_RO, GG_Engineering_RO, GG_Sales_RO, GG_Legal_RO, GG_IT_RO, GG_Ops_RO, GG_Marketing_RO, GG_R&D_RO, GG_QA_RO, GG_Facilities_RO, GG_Procurement_RO, GG_Logistics_RO, GG_Training_RO, GG_Support_RO
+DLs created: DL_Share_Finance_RO, DL_Share_Finance_RW; DL_Share_HR_RO, DL_Share_HR_RW; DL_Share_Engineering_RO, DL_Share_Engineering_RW; DL_Share_Sales_RO, DL_Share_Sales_RW; DL_Share_Legal_RO, DL_Share_Legal_RW; DL_Share_IT_RO, DL_Share_IT_RW; DL_Share_Ops_RO, DL_Share_Ops_RW; DL_Share_Marketing_RO, DL_Share_Marketing_RW; DL_Share_R&D_RO, DL_Share_R&D_RW; DL_Share_QA_RO, DL_Share_QA_RW; DL_Share_Facilities_RO, DL_Share_Facilities_RW; DL_Share_Procurement_RO, DL_Share_Procurement_RW; DL_Share_Logistics_RO, DL_Share_Logistics_RW; DL_Share_Training_RO, DL_Share_Training_RW; DL_Share_Support_RO, DL_Share_Support_RW
+Users by department:
+
+Department  Users
+----------  -----
+Engineering    31
+Facilities     33
+Finance        15
+HR             30
+IT             25
+Legal          20
+Logistics      37
+Marketing      37
+Ops            21
+Procurement    15
+QA             22
+R&D            14
+Sales          13
+Support        32
+Training       40
+
+**********************
+PowerShell transcript end
+End time: 20250914142753
+**********************

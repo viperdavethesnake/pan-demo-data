@@ -1,4 +1,4 @@
-# set-privs.psm1 (self-healing)
+# set_privs.psm1 (self-healing)
 # Enables SeRestore/SeTakeOwnership and provides helpers to set Owner/Group and NTFS ACLs.
 
 # --- C# source for the type ---
@@ -32,7 +32,7 @@ namespace Win32 {
       tp.Privileges = new LUID_AND_ATTRIBUTES();
       tp.Privileges.Luid = luid;
       tp.Privileges.Attributes = SE_PRIVILEGE_ENABLED;
-      return AdjustTokenPrivileges(hTok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+      return AdjustTokenPrivileges(hTok, false, ref tp, (uint)Marshal.SizeOf(tp), IntPtr.Zero, IntPtr.Zero);
     }
   }
 }
@@ -61,10 +61,12 @@ function Ensure-AdvApiType {
 function Enable-Privilege {
   param([Parameter(Mandatory)][ValidateSet('SeRestorePrivilege','SeTakeOwnershipPrivilege')] [string]$Name)
   Ensure-AdvApiType
-  [void][Win32.AdvApi]::EnablePrivilege($Name) | Out-Null
+  if (-not ([Win32.AdvApi]::EnablePrivilege($Name))) {
+    Write-Warning "Failed to enable privilege '$Name'. Ownership changes may fail. Please run as Administrator."
+  }
 }
 
-function Set-OwnerAndGroup {
+function Set-OwnerAndGroupFromModule {
   [CmdletBinding(SupportsShouldProcess=$true)]
   param(
     [Parameter(Mandatory)][string]$Path,
@@ -86,18 +88,29 @@ function Set-OwnerAndGroup {
 
   foreach ($t in $targets) {
     try {
+      Write-Verbose "Getting ACL for: $($t.FullName)"
       $acl = Get-Acl -LiteralPath $t.FullName
+      
+      Write-Verbose "Setting owner to: $Owner"
       $ownerAcct = New-Object System.Security.Principal.NTAccount($Owner)
       $acl.SetOwner($ownerAcct)
+      
       if ($Group) {
+        Write-Verbose "Setting group to: $Group"
         $groupAcct = New-Object System.Security.Principal.NTAccount($Group)
         $acl.SetGroup($groupAcct)
       }
+      
       if ($PSCmdlet.ShouldProcess($t.FullName,"Set Owner/Group")) {
-        Set-Acl -LiteralPath $t.FullName -AclObject $acl
+        Write-Verbose "Applying ACL changes..."
+        Set-Acl -LiteralPath $t.FullName -AclObject $acl -ErrorAction Stop
+        Write-Verbose "ACL changes applied successfully"
+      } else {
+        Write-Verbose "WhatIf: Would set owner=$Owner, group=$Group on $($t.FullName)"
       }
     } catch {
       Write-Warning "Failed to set owner/group on '$($t.FullName)': $($_.Exception.Message)"
+      Write-Verbose "Error details: $($_.Exception.ToString())"
     }
   }
 }
@@ -135,4 +148,4 @@ function Grant-FsAccess {
   }
 }
 
-Export-ModuleMember -Function Enable-Privilege, Set-OwnerAndGroup, Grant-FsAccess
+Export-ModuleMember -Function Enable-Privilege, Set-OwnerAndGroupFromModule, Grant-FsAccess

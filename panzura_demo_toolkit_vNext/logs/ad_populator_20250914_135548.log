@@ -1,0 +1,95 @@
+**********************
+PowerShell transcript start
+Start time: 20250914135548
+Username: PLAB\Administrator
+RunAs User: PLAB\Administrator
+Configuration Name: 
+Machine: PLAB-WIN-FS01 (Microsoft Windows NT 10.0.20348.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll -noexit -command try { . "c:\Users\Administrator.PLAB\AppData\Local\Programs\cursor\resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1" } catch {}
+Process ID: 3828
+PSVersion: 7.5.3
+PSEdition: Core
+GitCommitId: 7.5.3
+OS: Microsoft Windows 10.0.20348
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+Transcript started, output file is C:\Users\Administrator.PLAB\Documents\cursor\pan-demo-data\panzura_demo_toolkit_vNext\logs\ad_populator_20250914_135548.log
+Creating additional enterprise groups...
+  ✓ Created group: SecurityTeam
+  ✓ Created group: AuditTeam
+  ✓ Created group: Compliance
+  ✓ Created group: DataStewards
+  ✓ Created group: ISOAdmins
+  ✓ Created group: BackupOps
+  ✓ Created group: DisasterRecovery
+  ✓ Created group: PrivilegedIT
+  ✓ Created group: WebTeam
+  ✓ Created group: SysAdmins
+  ✓ Created group: DesktopSupport
+  ✓ Created group: MobileUsers
+  ✓ Created group: RemoteOnly
+  ✓ Created group: VPNUsers
+  ✓ Created group: AllStaff
+  ✓ Created group: AllContractors
+  ✓ Created group: ExternalVendors
+  ✓ Created group: Alumni
+  ✓ Created group: OnLeave
+  ✓ Created group: Office_NYC
+  ✓ Created group: Office_LA
+  ✓ Created group: Office_Chicago
+  ✓ Created group: Office_Austin
+  ✓ Created group: Remote_Workers
+  ✓ Created group: Field_Staff
+  ✓ Created group: ObsoleteStaff
+  ✓ Created group: RetiredGroups
+  ✓ Created group: LegacyApps
+  ✓ Created group: OldFinance
+  ✓ Created group: OldSales
+  ✓ Created group: Projects2010
+  ✓ Created group: Accounting2013
+  ✓ Created group: Sales2009
+  Created 25 users so far...
+  Created 50 users so far...
+  Created 75 users so far...
+  Created 100 users so far...
+  Created 125 users so far...
+  Created 150 users so far...
+  Created 175 users so far...
+  Created 200 users so far...
+Creating service accounts...
+  ✓ Created service account: sql_service (added to 2 groups)
+  ✓ Created service account: backup_svc (added to 2 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add web_app_pool to group IT
+  ✓ Created service account: web_app_pool (added to 1 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add monitoring_svc to group IT
+  ✓ Created service account: monitoring_svc (added to 1 groups)
+  ✓ Created service account: ad_sync_svc (added to 2 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add file_share_svc to group IT
+  ✓ Created service account: file_share_svc (added to 1 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add print_svc to group IT
+  ✓ Created service account: print_svc (added to 1 groups)
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'Sales' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add crm_service to group Sales
+PS>TerminatingError(Add-ADGroupMember): "Cannot find an object with identity: 'IT' under: 'DC=plab,DC=local'."
+    ⚠ Failed to add crm_service to group IT
+  ✓ Created service account: crm_service (added to 0 groups)
+
+📊 User details exported to: C:\Users\Administrator.PLAB\Documents\cursor\pan-demo-data\panzura_demo_toolkit_vNext\logs\users_created_20250914_135618.csv
+
+🔍 Running validation checks...
+  ✓ Found 44 groups
+  ✓ Found 215 users
+  ✓ Found 2 service accounts
+  ✓ GG_AllEmployees has 215 members
+**********************
+PowerShell transcript end
+End time: 20250914135618
+**********************

@@ -4,4 +4,4 @@ Import-Module SmbShare        -SkipEditionCheck
 
 
 # Your helper module (native PS7 is fine)
-Import-Module .\set-privs.psm1
+Import-Module .\set_privs.psm1
