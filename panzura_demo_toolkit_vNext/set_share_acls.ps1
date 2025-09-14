@@ -1,3 +1,7 @@
+# Import required modules
+Import-Module ActiveDirectory -SkipEditionCheck -ErrorAction Stop
+Import-Module SmbShare -SkipEditionCheck -ErrorAction Stop
+
 $Domain = (Get-ADDomain).NetBIOSName
 $Share  = "FS01-Shared"   # from your output
 

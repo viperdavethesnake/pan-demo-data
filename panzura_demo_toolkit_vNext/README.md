@@ -194,7 +194,6 @@ Get-Help .\ad_populator.ps1 -Examples
 - create_folders.ps1 (enhanced with realistic enterprise structure)
 - set_share_acls.ps1
 - set_privs.psm1
-- update_shims.ps1
 - sanity.ps1
 - ad_populator.ps1
 - ad_reset.ps1

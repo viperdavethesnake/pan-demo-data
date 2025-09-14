@@ -27,11 +27,17 @@ $logFile = Join-Path $logDir ("create_folders_hybrid_{0}.log" -f (Get-Date -Form
 Start-Transcript -Path $logFile -Append
 
 # Import helper module
-. (Join-Path $PSScriptRoot 'set_privs.psm1')
+Import-Module (Join-Path $PSScriptRoot 'set_privs.psm1') -Force -ErrorAction Stop
 
 # Try AD
 try { Import-Module ActiveDirectory -SkipEditionCheck -ErrorAction Stop } 
 catch { throw "ActiveDirectory module required but not available." }
+
+try { Import-Module SmbShare -SkipEditionCheck -ErrorAction Stop }
+catch {
+  Write-Warning "SmbShare module not available. Share creation will be skipped."
+  $CreateShare = $false
+}
 
 if (-not $Domain) { $Domain = (Get-ADDomain).NetBIOSName }
 
@@ -300,7 +306,7 @@ foreach ($d in $Departments) {
   }
   
   # Set ownership for the entire department structure now that all folders are created
-  Set-OwnerAndGroup -Path $deptPath -Owner $owner -Group $owner -Recurse
+  Set-OwnerAndGroupFromModule -Path $deptPath -Owner $owner -Group $owner -Recurse -Confirm:$false
 }
 
 Write-Host "Hybrid folder structure created successfully!" -ForegroundColor Green
