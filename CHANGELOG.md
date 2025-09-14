@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.0] - 2025-01-14
+
+### Code Quality Improvements
+
+- **Removed redundant update_shims.ps1 script**: Eliminated standalone module import script
+- **Integrated module imports**: Each script now imports only the modules it actually needs
+- **Added missing module imports**: 
+  - Added SmbShare import to create_folders.ps1 and set_share_acls.ps1
+  - Added set_privs.psm1 import to create_folders.ps1
+- **Improved script maintainability**: Self-contained scripts following PowerShell best practices
+- **Reduced script count**: From 10 to 9 scripts, eliminating redundancy
+
+### Technical Improvements
+
+- **Better error handling**: Scripts can handle missing modules gracefully
+- **Cleaner workflow**: No need to run separate script for module imports
+- **Self-contained scripts**: Each script is independent and imports its own dependencies
+- **Updated documentation**: Removed references to deleted script from README.md
+
 ## [1.1.0] - 2025-01-14
 
 ### Major Fixes
