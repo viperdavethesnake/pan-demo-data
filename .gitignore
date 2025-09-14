@@ -1,0 +1,32 @@
+# Log files and directories
+logs/
+*.log
+
+# PowerShell transcript files
+*_transcript.txt
+
+# CSV output files from scripts
+users_created_*.csv
+
+# Temporary files
+*.tmp
+*.temp
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.bak
+*.backup
+
+# Archive files (unless specifically needed)
+*.zip
+*.7z
+*.rar
