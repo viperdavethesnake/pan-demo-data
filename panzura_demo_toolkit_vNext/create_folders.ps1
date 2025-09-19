@@ -227,24 +227,13 @@ foreach ($d in $Departments) {
     Ensure-Folder -Path $subPath
     Set-RealisticFolderTimestamps -Path $subPath -FolderType $s
     
-    # Randomly break inheritance for "messy" areas (from old script)
-    if ($rand.Next(0,2) -eq 1) {
-      Grant-FsAccess -Path $subPath -Identity $principals.RW -Rights 'Modify' -BreakInheritance -CopyInheritance
-    } else {
-      Grant-FsAccess -Path $subPath -Identity $principals.RW -Rights 'Modify'
-    }
+    # Set consistent permissions (removed random inheritance breaking to prevent ACL corruption)
+    Grant-FsAccess -Path $subPath -Identity $principals.RW -Rights 'Modify'
     
-    # Special handling for Sensitive folders
+    # Special handling for Sensitive folders (simplified to prevent ACL corruption)
     if ($s -eq 'Sensitive') {
-      # Remove broad access and set restricted permissions
-      $acl = Get-Acl $subPath
-      $acl.Access | Where-Object {
-        $_.IdentityReference -like '*Everyone' -or $_.IdentityReference -like '*AllEmployees*'
-      } | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
-      Set-Acl $subPath $acl
-      
-      # Set restricted permissions
-      Grant-FsAccess -Path $subPath -Identity $principals.Owners -Rights 'FullControl' -ThisFolderOnly
+      # Set restricted permissions without direct ACL manipulation
+      Grant-FsAccess -Path $subPath -Identity $principals.Owners -Rights 'FullControl' -ThisFolderOnly -ClearExisting
       Grant-FsAccess -Path $subPath -Identity $principals.RW     -Rights 'Modify'     -ThisFolderOnly
       Grant-FsAccess -Path $subPath -Identity $principals.RO     -Rights 'ReadAndExecute' -ThisFolderOnly
     }

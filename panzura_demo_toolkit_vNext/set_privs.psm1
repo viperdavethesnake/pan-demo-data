@@ -131,7 +131,11 @@ function Grant-FsAccess {
   $acl = Get-Acl -LiteralPath $Path
 
   if ($BreakInheritance) { $acl.SetAccessRuleProtection($true, $CopyInheritance) }
-  if ($ClearExisting) { $acl.Access | Where-Object { -not $_.IsInherited } | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null } }
+  if ($ClearExisting) { 
+    $acl.Access | Where-Object { -not $_.IsInherited } | ForEach-Object { 
+      try { $acl.RemoveAccessRule($_) | Out-Null } catch { Write-Verbose "Could not remove rule: $($_.IdentityReference)" }
+    }
+  }
 
   $inheritFlags = [System.Security.AccessControl.InheritanceFlags]::None
   $propFlags = [System.Security.AccessControl.PropagationFlags]::None

@@ -9,9 +9,9 @@
 .\demo_report.ps1 -ShowSamples -SampleUsers 5
 
 # Large-scale deployment (5,000+ files)
-.\create_files.ps1 -MaxFiles 5000 -DatePreset LegacyMess
-.\create_files.ps1 -MaxFiles 5000 -DatePreset YearSpread
-.\create_files.ps1 -MaxFiles 5000 -DatePreset Uniform -MinDate (Get-Date).AddYears(-10) -MaxDate (Get-Date)
+.\create_files.ps1 -MaxFiles 10000 -DatePreset LegacyMess
+.\create_files.ps1 -MaxFiles 10000 -DatePreset YearSpread
+.\create_files.ps1 -MaxFiles 10000 -DatePreset Uniform -MinDate (Get-Date).AddYears(-10) -MaxDate (Get-Date)
 
 # Reset and redo (complete cleanup)
 .\ad_reset.ps1 -BaseOUName DemoCorp -DoUsers -DoGroups -DoOUs -PurgeBySamPrefixes -Confirm:$false -VerboseSummary
@@ -27,4 +27,31 @@ Get-ChildItem -Path "S:\Shared" -Recurse -File | Get-Random -Count 50 | ForEach-
 
 # Verify ownership distribution (sample 100 files)
 Get-ChildItem -Path "S:\Shared" -Recurse -File | Get-Random -Count 100 | ForEach-Object { $acl = Get-Acl $_.FullName; [PSCustomObject]@{ File = $_.Name; Owner = $acl.Owner; Group = $acl.Group } } | Format-Table -AutoSize
+
+# === FUN DEMO SCENARIOS ===
+# Perfect for different Panzura Symphony demo use cases
+
+# "The Consultant's Nightmare" - Perfect for Panzura demos
+.\create_files.ps1 -MaxFiles 75000 -DatePreset YearSpread -MinDate (Get-Date).AddYears(-12) -MaxDate (Get-Date).AddDays(-90) -Verbose
+# 75K files spanning 12 years - shows the "we need help" scenario
+
+# "The Compliance Auditor's Dream" - Legal/Finance heavy
+.\create_files.ps1 -MaxFiles 50000 -DatePreset LegacyMess -MinDate (Get-Date).AddYears(-18) -MaxDate (Get-Date).AddMonths(-18) -Verbose
+# 50K files with lots of old compliance docs - perfect for showing retention policies
+
+# "The IT Manager's Worst Day" - Maximum chaos
+.\create_files.ps1 -MaxFiles 150000 -DatePreset Uniform -MinDate (Get-Date).AddYears(-30) -MaxDate (Get-Date).AddYears(-2) -Verbose
+# 150K files spanning 30 years - the "we've never deleted anything" scenario
+
+# "The Merger & Acquisition Special" - Mixed environments
+.\create_files.ps1 -MaxFiles 100000 -DatePreset RecentSkew -MinDate (Get-Date).AddYears(-8) -MaxDate (Get-Date).AddDays(-180) -Verbose
+# 100K files with recent activity - shows "we just merged 3 companies"
+
+# "The Ransomware Recovery Demo" - Perfect for backup demos
+.\create_files.ps1 -MaxFiles 200000 -DatePreset YearSpread -MinDate (Get-Date).AddYears(-20) -MaxDate (Get-Date).AddDays(-7) -Verbose
+# 200K files with recent activity - shows "we need to restore everything"
+
+# "The GDPR Compliance Nightmare" - Data discovery
+.\create_files.ps1 -MaxFiles 300000 -DatePreset LegacyMess -MinDate (Get-Date).AddYears(-25) -MaxDate (Get-Date).AddYears(-1) -Verbose
+# 300K files spanning 25 years - shows "we need to find all personal data"
 

@@ -400,6 +400,9 @@ foreach ($dir in $folders) {
   
   for ($i = 0; $i -lt $filesPerFolder; $i++) {
     
+    # Check if we've hit the MaxFiles limit
+    if ($MaxFiles -and $created -ge $MaxFiles) { break }
+    
     # Generate file
     $extInfo = Get-WeightedExt $dept
     $base = Get-RealisticBaseName $dept $prefixes
@@ -495,7 +498,7 @@ foreach ($dir in $folders) {
         $elapsed = ((Get-Date) - $start).TotalSeconds
         $rate = if ($elapsed -gt 0) { $created / $elapsed } else { 0 }
         $etaSec = if ($MaxFiles) { [math]::Max(0, ($MaxFiles - $created) / ($rate + 0.0001)) } else { 0 }
-        $pct = if ($MaxFiles) { [int](100 * $created / [double]$MaxFiles) } else { [int](100 * ($folderIdx / [double]$folders.Count)) }
+        $pct = if ($MaxFiles) { [Math]::Min(100, [int](100 * $created / [double]$MaxFiles)) } else { [int](100 * ($folderIdx / [double]$folders.Count)) }
         $status = if ($MaxFiles) { ("Files: {0} / {1} (~{2:N1}/s)" -f $created, $MaxFiles, $rate) } else { ("Folder {0} / {1} — Files: {2} (~{3:N1}/s)" -f $folderIdx, $folders.Count, $created, $rate) }
         $detail = if ($MaxFiles) { ("ETA: ~{0:N0}s" -f $etaSec) } else { "ETA: estimating…" }
         Write-Progress -Activity ("Generating files (sparse: True; AD used: {0}; folder-aware: True)" -f $UseAD) -Status $status -CurrentOperation $detail -PercentComplete $pct
@@ -506,6 +509,8 @@ foreach ($dir in $folders) {
     }
   }
   
+  # Check if we've hit the MaxFiles limit at folder level
+  if ($MaxFiles -and $created -ge $MaxFiles) { break }
 }
 
 Write-Progress -Activity "Generating files" -Completed
