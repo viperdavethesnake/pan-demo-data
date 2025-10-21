@@ -389,29 +389,44 @@ $results = $fileWorkItems | ForEach-Object -ThrottleLimit $ThrottleLimit -Parall
                 } catch {}
             }
             
-            # Set ownership (if AD enabled)
+            # Set ownership (if AD enabled) - match vNext2 logic
             if ($UseAD -and $UserOwnership) {
                 try {
-                    $rng = $rnd.NextDouble()
-                    if ($rng -lt 0.18) {
-                        # 18% owned by random user
-                        $groupName = "GG_$dept"
-                        try {
-                            $users = Get-ADGroupMember -Identity $groupName -ErrorAction Stop | Get-ADUser -ErrorAction SilentlyContinue
-                            if ($users) {
-                                $sam = ($users | Get-Random).SamAccountName
-                                Set-OwnerAndGroupFromModule -Path $filePath -Owner "$Domain\$sam" -Group "$Domain\$groupName" -Confirm:$false
-                            } else {
+                    # Determine actual department from path (match vNext2 logic)
+                    $deptName = $null
+                    $pathParts = $filePath.Split([IO.Path]::DirectorySeparatorChar)
+                    # Assuming structure is S:\Shared\<Dept>...
+                    if ($pathParts.Length -ge 4) {
+                        $deptCandidate = $pathParts[2]
+                        # Check if this is a valid department by checking if GG_<dept> exists
+                        if ($DeptPrefixMap.ContainsKey($deptCandidate)) {
+                            $deptName = $deptCandidate
+                        }
+                    }
+                    
+                    if ($deptName) {
+                        $rng = $rnd.NextDouble()
+                        if ($rng -lt 0.18) {
+                            # 18% owned by random user
+                            $groupName = "GG_$deptName"
+                            try {
+                                $users = Get-ADGroupMember -Identity $groupName -ErrorAction Stop | Get-ADUser -ErrorAction SilentlyContinue
+                                if ($users) {
+                                    $sam = ($users | Get-Random).SamAccountName
+                                    Set-OwnerAndGroupFromModule -Path $filePath -Owner "$Domain\$sam" -Group "$Domain\$groupName" -Confirm:$false
+                                } else {
+                                    Set-OwnerAndGroupFromModule -Path $filePath -Owner "$Domain\$groupName" -Group "$Domain\$groupName" -Confirm:$false
+                                }
+                            } catch {
                                 Set-OwnerAndGroupFromModule -Path $filePath -Owner "$Domain\$groupName" -Group "$Domain\$groupName" -Confirm:$false
                             }
-                        } catch {
+                        } else {
+                            # 82% owned by department group
+                            $groupName = "GG_$deptName"
                             Set-OwnerAndGroupFromModule -Path $filePath -Owner "$Domain\$groupName" -Group "$Domain\$groupName" -Confirm:$false
                         }
-                    } else {
-                        # 82% owned by department group
-                        $groupName = "GG_$dept"
-                        Set-OwnerAndGroupFromModule -Path $filePath -Owner "$Domain\$groupName" -Group "$Domain\$groupName" -Confirm:$false
                     }
+                    # Else: Leave ownership as default (BUILTIN\Administrators) for non-departmental folders
                 } catch {}
             }
             
