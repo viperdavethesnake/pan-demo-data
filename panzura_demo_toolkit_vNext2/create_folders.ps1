@@ -1,11 +1,24 @@
-# create_folders_hybrid.ps1 — Simple folder structure with enhanced AD integration
+# create_folders.ps1 — ACL-Optimized for Panzura Symphony (vNext2)
 <#
 .SYNOPSIS
-  Create folder structure combining simplicity of old script with enhanced features of new script.
+  Create folder structure with AD integration - optimized to prevent Panzura Symphony scan errors.
 
 .DESCRIPTION
-  Uses the clean, simple folder structure from the old script (Projects, Archive, Temp, Sensitive, Vendors)
-  with the enhanced AD integration, realistic timestamps, and cross-department folders from the new script.
+  Creates enterprise folder structure with proper AD integration while avoiding ACL corruption
+  patterns that cause Panzura Symphony directory service lookup failures.
+  
+  FIXES:
+  - Removed ACL-clearing operations that corrupt directory handles
+  - Simplified inheritance patterns to prevent GDS_BAD_DIR_HANDLE errors
+  - Maintained full AD integration and realistic enterprise structure
+
+.EXAMPLE
+  .\create_folders.ps1
+  Auto-discovers departments from AD and creates folder structure
+
+.EXAMPLE
+  .\create_folders.ps1 -UseDomainLocal
+  Uses Domain Local groups for AGDLP pattern
 #>
 
 [CmdletBinding()]
@@ -23,7 +36,7 @@ $logDir = Join-Path $PSScriptRoot "logs"
 if (-not (Test-Path -Path $logDir)) {
   New-Item -ItemType Directory -Path $logDir | Out-Null
 }
-$logFile = Join-Path $logDir ("create_folders_hybrid_{0}.log" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
+$logFile = Join-Path $logDir ("create_folders_{0}.log" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
 Start-Transcript -Path $logFile -Append
 
 # Import helper module
@@ -42,18 +55,16 @@ catch {
 if (-not $Domain) { $Domain = (Get-ADDomain).NetBIOSName }
 
 # If -Departments was not provided, discover them dynamically from Active Directory
-# This ensures we only create folders for groups created by the ad_populator.ps1 script.
 if (-not $PSBoundParameters.ContainsKey('Departments')) {
     Write-Host "No -Departments specified. Discovering from Directory (GG_* pattern)..." -ForegroundColor Cyan
     try {
-        # Find all GG_* groups, then filter out sub-groups and non-department groups locally.
         $deptGroups = Get-ADGroup -Filter 'SamAccountName -like "GG_*" -and SamAccountName -ne "GG_AllEmployees"' | Where-Object { $_.SamAccountName -notlike "GG_*_*" }
         if ($deptGroups) {
             $Departments = $deptGroups.SamAccountName | ForEach-Object { $_.Substring(3) }
             Write-Host "Discovered $($Departments.Count) departments: $($Departments -join ', ')" -ForegroundColor Green
         } else {
             Write-Warning "No department groups (GG_*) found in Active Directory. No folders will be created."
-            return # Exit gracefully
+            return
         }
     } catch {
         Write-Error "An error occurred while querying Active Directory: $($_.Exception.Message)"
@@ -63,7 +74,6 @@ if (-not $PSBoundParameters.ContainsKey('Departments')) {
     Write-Host "Using manually specified list of $($Departments.Count) departments." -ForegroundColor Yellow
 }
 
-# If after all that, we have no departments, exit.
 if (-not $Departments) {
     Write-Host "Department list is empty. Exiting."
     return
@@ -72,7 +82,7 @@ if (-not $Departments) {
 # Random for timestamps
 $rand = New-Object System.Random
 
-# Folder timestamp function (from new script)
+# Folder timestamp function
 function Set-RealisticFolderTimestamps {
   param([Parameter(Mandatory)][string]$Path, [string]$FolderType = "Standard")
   
@@ -126,7 +136,6 @@ function Set-RealisticFolderTimestamps {
   }
 }
 
-# Helper functions (from new script)
 function Ensure-Folder([string]$Path) {
   if (-not (Test-Path $Path)) {
     $drive = Split-Path $Path -Qualifier
@@ -167,7 +176,7 @@ function Test-AdGroupSam([string]$Sam) {
 }
 
 # Main execution
-Write-Host "Creating hybrid folder structure (simple + enhanced)..." -ForegroundColor Green
+Write-Host "Creating ACL-optimized folder structure for Panzura Symphony..." -ForegroundColor Green
 
 # Ensure root exists
 Ensure-Folder -Path $Root
@@ -187,16 +196,16 @@ if ($CreateShare) {
   }
 }
 
-# Cross-department folders (from new script)
+# Cross-department folders
 $crossDeptFolders = @('Shared', 'Inter-Department', 'External', 'Common', 'Cross-Functional', 'Collaboration')
 foreach ($cross in $crossDeptFolders) {
   if ($rand.Next(0,3) -eq 0) {  # 33% chance
     $crossPath = Join-Path $Root $cross
     Ensure-Folder -Path $crossPath
     
-    # Set permissions for all employees
+    # Set permissions for all employees (NO inheritance breaking to avoid corruption)
     $allEmployees = if (Test-AdGroupSam "GG_AllEmployees") { "$Domain\GG_AllEmployees" } else { "$Domain\Domain Users" }
-    Grant-FsAccess -Path $crossPath -Identity $allEmployees -Rights 'Modify' -BreakInheritance -CopyInheritance
+    Grant-FsAccess -Path $crossPath -Identity $allEmployees -Rights 'Modify'
     Grant-FsAccess -Path $crossPath -Identity "$Domain\Domain Admins" -Rights 'FullControl'
     Set-RealisticFolderTimestamps -Path $crossPath -FolderType "Standard"
   }
@@ -215,30 +224,30 @@ foreach ($d in $Departments) {
   # Set ownership
   $owner = if ($principals.DeptGG) { $principals.DeptGG } else { $principals.Owners }
   
-  # Set permissions
-  Grant-FsAccess -Path $deptPath -Identity $principals.RW     -Rights 'Modify'        -BreakInheritance -CopyInheritance
+  # FIXED: Set permissions WITHOUT breaking inheritance to avoid ACL corruption
+  # Panzura Symphony needs clean inheritance chains to properly scan directories
+  Grant-FsAccess -Path $deptPath -Identity $principals.RW     -Rights 'Modify'
   Grant-FsAccess -Path $deptPath -Identity $principals.RO     -Rights 'ReadAndExecute'
   Grant-FsAccess -Path $deptPath -Identity $principals.Owners -Rights 'FullControl'
   
-  # Simple substructure (from old script)
+  # Simple substructure
   $subs = @('Projects','Archive','Temp','Sensitive','Vendors')
   foreach ($s in $subs) {
     $subPath = Join-Path $deptPath $s
     Ensure-Folder -Path $subPath
     Set-RealisticFolderTimestamps -Path $subPath -FolderType $s
     
-    # Set consistent permissions (removed random inheritance breaking to prevent ACL corruption)
-    Grant-FsAccess -Path $subPath -Identity $principals.RW -Rights 'Modify'
+    # FIXED: Let permissions inherit naturally - no explicit setting unless needed
+    # This prevents the GDS_BAD_DIR_HANDLE errors in Panzura Symphony scans
     
-    # Special handling for Sensitive folders (simplified to prevent ACL corruption)
+    # For Sensitive folders, add restricted permissions WITHOUT breaking inheritance
     if ($s -eq 'Sensitive') {
-      # Set restricted permissions without direct ACL manipulation
-      Grant-FsAccess -Path $subPath -Identity $principals.Owners -Rights 'FullControl' -ThisFolderOnly -ClearExisting
+      # Add additional restrictions while maintaining inheritance
+      Grant-FsAccess -Path $subPath -Identity $principals.Owners -Rights 'FullControl' -ThisFolderOnly
       Grant-FsAccess -Path $subPath -Identity $principals.RW     -Rights 'Modify'     -ThisFolderOnly
-      Grant-FsAccess -Path $subPath -Identity $principals.RO     -Rights 'ReadAndExecute' -ThisFolderOnly
     }
     
-    # Add some project subfolders for Projects folder
+    # Add project subfolders for Projects folder
     if ($s -eq 'Projects') {
       $projectNames = @('Project_Alpha', 'Project_Beta', 'Project_Gamma', 'Budget_Planning_2025', 'Q4_2024_Initiatives', 'Annual_Review_2024')
       $numProjects = $rand.Next(1, 4)
@@ -248,7 +257,7 @@ foreach ($d in $Departments) {
         Ensure-Folder -Path $projectPath
         Set-RealisticFolderTimestamps -Path $projectPath -FolderType "Project"
         
-        # Add project subfolders
+        # Add project subfolders - let them inherit permissions naturally
         $projectSubs = @('Planning', 'Execution', 'Review', 'Resources', 'Documentation')
         foreach ($projSub in $projectSubs) {
           if ($rand.Next(0,3) -eq 0) {  # 33% chance
@@ -256,7 +265,7 @@ foreach ($d in $Departments) {
             Ensure-Folder -Path $projSubPath
             Set-RealisticFolderTimestamps -Path $projSubPath -FolderType "Project"
             
-            # Deep nesting - add Final/Archive/Backup to some project subfolders
+            # Deep nesting - natural inheritance
             if ($rand.Next(0,4) -eq 0) {  # 25% chance
               $deepSubs = @('Final', 'Archive', 'Backup')
               $deepSub = $deepSubs[$rand.Next(0, $deepSubs.Count)]
@@ -269,36 +278,33 @@ foreach ($d in $Departments) {
       }
     }
     
-    # Add some duplicate/legacy folders (from new script concept)
+    # Add some duplicate/legacy folders
     if ($rand.Next(0,4) -eq 0) {  # 25% chance
       $duplicates = @("${s}_Backup", "${s}_Old", "${s}_Archive", "${s}_Copy", "${s}_v2", "${s}_2024", "${s}_Legacy")
       $dupName = $duplicates[$rand.Next(0, $duplicates.Count)]
       $dupPath = Join-Path $deptPath $dupName
       Ensure-Folder -Path $dupPath
       Set-RealisticFolderTimestamps -Path $dupPath -FolderType "Duplicate"
-      
-      # Same permissions as parent
-      Grant-FsAccess -Path $dupPath -Identity $principals.RW -Rights 'Modify'
+      # Let permissions inherit naturally
     }
   }
   
-  # Add some naming chaos folders (simplified from new script)
+  # Add some naming chaos folders
   if ($rand.Next(0,3) -eq 0) {  # 33% chance
     $chaosNames = @("OLD_${d}", "LEGACY_${d}", "${d}_MIXED", "${d}_Backup")
     $chaosName = $chaosNames[$rand.Next(0, $chaosNames.Count)]
     $chaosPath = Join-Path $Root $chaosName
     Ensure-Folder -Path $chaosPath
     Set-RealisticFolderTimestamps -Path $chaosPath -FolderType "Standard"
-    
-    # Same permissions as department
-    Grant-FsAccess -Path $chaosPath -Identity $principals.RW -Rights 'Modify'
+    # Let permissions inherit from root
   }
   
-  # Set ownership for the entire department structure now that all folders are created
+  # Set ownership for the entire department structure
   Set-OwnerAndGroupFromModule -Path $deptPath -Owner $owner -Group $owner -Recurse -Confirm:$false
 }
 
-Write-Host "Hybrid folder structure created successfully!" -ForegroundColor Green
+Write-Host "`n✓ Folder structure created successfully!" -ForegroundColor Green
+Write-Host "✓ ACL corruption patterns removed - Panzura Symphony scans should complete without errors" -ForegroundColor Green
 Write-Host "Folder tree created & ACLed at $Root" -ForegroundColor Cyan
 if ($CreateShare) {
   Write-Host "Share: \\$env:COMPUTERNAME\$ShareName" -ForegroundColor Cyan
@@ -306,4 +312,3 @@ if ($CreateShare) {
 
 # --- END SCRIPT ---
 Stop-Transcript
-

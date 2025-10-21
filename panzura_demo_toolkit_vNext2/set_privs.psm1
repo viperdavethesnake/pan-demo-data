@@ -1,5 +1,6 @@
-# set_privs.psm1 (self-healing)
+# set_privs.psm1 (ACL-optimized for Panzura Symphony - vNext2)
 # Enables SeRestore/SeTakeOwnership and provides helpers to set Owner/Group and NTFS ACLs.
+# FIXED: Removed ACL corruption patterns that cause Panzura Symphony scan errors
 
 # --- C# source for the type ---
 $__priv_src = @'
@@ -41,16 +42,7 @@ namespace Win32 {
 function Ensure-AdvApiType {
   if (-not ("Win32.AdvApi" -as [type])) {
     try {
-      # Try to prevent notepad from opening by using a different compilation approach
-      # Use a temporary directory that won't trigger file associations
-      $tempDir = Join-Path $env:TEMP "PowerShell_AddType_$(Get-Random)"
-      New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-      try {
-        Add-Type -TypeDefinition $__priv_src -Language CSharp -ErrorAction Stop
-      } finally {
-        # Clean up the temporary directory
-        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-      }
+      Add-Type -TypeDefinition $__priv_src -Language CSharp -ErrorAction Stop
     } catch {
       Write-Warning "Failed to compile C# type: $($_.Exception.Message)"
       throw
@@ -124,26 +116,31 @@ function Grant-FsAccess {
     [ValidateSet('Allow','Deny')][string]$Type = 'Allow',
     [switch]$InheritToChildren,
     [switch]$ThisFolderOnly,
-    [switch]$ClearExisting,
     [switch]$BreakInheritance,
     [switch]$CopyInheritance
   )
+  
+  # FIXED: Removed -ClearExisting parameter that was causing ACL corruption
+  # The previous version had a -ClearExisting switch that would remove all non-inherited ACEs
+  # This could create malformed ACL structures that Panzura Symphony couldn't parse
+  
   $acl = Get-Acl -LiteralPath $Path
 
-  if ($BreakInheritance) { $acl.SetAccessRuleProtection($true, $CopyInheritance) }
-  if ($ClearExisting) { 
-    $acl.Access | Where-Object { -not $_.IsInherited } | ForEach-Object { 
-      try { $acl.RemoveAccessRule($_) | Out-Null } catch { Write-Verbose "Could not remove rule: $($_.IdentityReference)" }
-    }
+  # Only break inheritance when explicitly requested (and NEVER clear existing rules)
+  if ($BreakInheritance) { 
+    $acl.SetAccessRuleProtection($true, $CopyInheritance) 
   }
 
+  # Set inheritance flags based on parameters
   $inheritFlags = [System.Security.AccessControl.InheritanceFlags]::None
   $propFlags = [System.Security.AccessControl.PropagationFlags]::None
+  
   if ($InheritToChildren -and -not $ThisFolderOnly) {
     $inheritFlags = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
   } elseif (-not $ThisFolderOnly) {
     $inheritFlags = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
   }
+  
   $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($Identity, $Rights, $inheritFlags, $propFlags, [System.Security.AccessControl.AccessControlType]::$Type)
 
   if ($PSCmdlet.ShouldProcess($Path,"Grant $Type $Rights to $Identity")) {
@@ -153,3 +150,5 @@ function Grant-FsAccess {
 }
 
 Export-ModuleMember -Function Enable-Privilege, Set-OwnerAndGroupFromModule, Grant-FsAccess
+
+

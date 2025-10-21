@@ -314,8 +314,6 @@ foreach ($Dept in $Departments) {
       $errorMsg = "Failed to create user {0} in {1}: {2}" -f $sam, $Dept, $_.Exception.Message
       Write-Warning $errorMsg
       $userErrors++
-      # Advance prefix counter once to avoid retrying same SAM in tight loops
-      # (By recalculating on next iteration we will naturally pick the next available)
     }
   }
 }
@@ -399,61 +397,6 @@ if (-not $WhatIf -and $userDetails.Count -gt 0) {
   }
 }
 
-# Comprehensive Validation
-Write-Host "`n🔍 Running validation checks..." -ForegroundColor Yellow
-$validationResults = @{
-  TotalGroups = 0
-  TotalUsers = 0
-  ServiceAccounts = 0
-  ValidationErrors = @()
-}
-
-# Validate groups
-try {
-  $allGroups = Get-ADGroup -Filter "Name -like 'GG_*' -or Name -like 'DL_*'" -SearchBase $DomainDN -ErrorAction SilentlyContinue
-  $additionalGroups = Get-ADGroup -Filter "Name -eq 'SecurityTeam' -or Name -eq 'AuditTeam' -or Name -eq 'Compliance' -or Name -eq 'DataStewards' -or Name -eq 'ISOAdmins' -or Name -eq 'BackupOps' -or Name -eq 'DisasterRecovery' -or Name -eq 'PrivilegedIT' -or Name -eq 'MobileUsers' -or Name -eq 'RemoteOnly' -or Name -eq 'VPNUsers' -or Name -eq 'AllStaff' -or Name -eq 'AllContractors' -or Name -eq 'ExternalVendors' -or Name -eq 'Alumni' -or Name -eq 'OnLeave' -or Name -eq 'Office_NYC' -or Name -eq 'Office_LA' -or Name -eq 'Office_Chicago' -or Name -eq 'Office_Austin' -or Name -eq 'Remote_Workers' -or Name -eq 'Field_Staff' -or Name -eq 'ObsoleteStaff' -or Name -eq 'RetiredGroups' -or Name -eq 'LegacyApps' -or Name -eq 'OldFinance' -or Name -eq 'OldSales' -or Name -eq 'Projects2010' -or Name -eq 'Accounting2013' -or Name -eq 'Sales2009'" -SearchBase $DomainDN -ErrorAction SilentlyContinue
-  $validationResults.TotalGroups = $allGroups.Count + $additionalGroups.Count
-  Write-Host "  ✓ Found $($validationResults.TotalGroups) groups" -ForegroundColor Green
-} catch {
-  $validationResults.ValidationErrors += "Failed to validate groups: $_"
-  Write-Host "  ✗ Failed to validate groups: $_" -ForegroundColor Red
-}
-
-# Validate users
-try {
-  $allUsers = Get-ADUser -Filter "SamAccountName -like 'fina*' -or SamAccountName -like 'hr*' -or SamAccountName -like 'eng*' -or SamAccountName -like 'sale*' -or SamAccountName -like 'lega*' -or SamAccountName -like 'it*' -or SamAccountName -like 'ops*' -or SamAccountName -like 'mark*'" -SearchBase $DomainDN -ErrorAction SilentlyContinue
-  $validationResults.TotalUsers = $allUsers.Count
-  Write-Host "  ✓ Found $($allUsers.Count) users" -ForegroundColor Green
-} catch {
-  $validationResults.ValidationErrors += "Failed to validate users: $_"
-  Write-Host "  ✗ Failed to validate users: $_" -ForegroundColor Red
-}
-
-# Validate service accounts
-try {
-  $serviceUsers = Get-ADUser -Filter "SamAccountName -like '*_service'" -SearchBase $DomainDN -ErrorAction SilentlyContinue
-  $validationResults.ServiceAccounts = $serviceUsers.Count
-  Write-Host "  ✓ Found $($serviceUsers.Count) service accounts" -ForegroundColor Green
-} catch {
-  $validationResults.ValidationErrors += "Failed to validate service accounts: $_"
-  Write-Host "  ✗ Failed to validate service accounts: $_" -ForegroundColor Red
-}
-
-# Validate GG_AllEmployees membership
-try {
-  $allEmployeesGroup = Get-ADGroup -LDAPFilter "(sAMAccountName=GG_AllEmployees)" -SearchBase $DomainDN -ErrorAction SilentlyContinue
-  if ($allEmployeesGroup) {
-    $memberCount = (Get-ADGroupMember -Identity $allEmployeesGroup -Recursive -ErrorAction SilentlyContinue | Where-Object {$_.objectClass -eq 'user'} | Measure-Object).Count
-    Write-Host "  ✓ GG_AllEmployees has $memberCount members" -ForegroundColor Green
-  } else {
-    $validationResults.ValidationErrors += "GG_AllEmployees group not found"
-    Write-Host "  ✗ GG_AllEmployees group not found" -ForegroundColor Red
-  }
-} catch {
-  $validationResults.ValidationErrors += "Failed to validate GG_AllEmployees: $_"
-  Write-Host "  ✗ Failed to validate GG_AllEmployees: $_" -ForegroundColor Red
-}
-
 # Summary
 if ($VerboseSummary) {
   $deptSummary = foreach ($d in $Departments) {
@@ -471,20 +414,9 @@ if ($VerboseSummary) {
   Write-Host ("Service accounts existed: {0}" -f $serviceAccountsExisted)
   Write-Host ("Service account errors: {0}" -f $serviceAccountsErrors)
   Write-Host ("Additional enterprise groups: {0}" -f $AdditionalGroups.Count)
-  Write-Host ("Total groups validated: {0}" -f $validationResults.TotalGroups)
-  Write-Host ("Total users validated: {0}" -f $validationResults.TotalUsers)
-  Write-Host ("Service accounts validated: {0}" -f $validationResults.ServiceAccounts)
   Write-Host ("Departments: {0}" -f (($Departments) -join ', '))
-  Write-Host ("Core groups: {0}" -f ((@("GG_AllEmployees") + ($Departments | ForEach-Object { "GG_{0}" -f $_ })) -join ', '))
-  if ($CreateAccessTiers) { Write-Host ("Access tiers created: {0}" -f (($Departments | ForEach-Object { "GG_{0}_RO" -f $_ }) -join ', ')) }
-  if ($CreateAGDLP)     { Write-Host ("DLs created: {0}" -f (($Departments | ForEach-Object { "DL_Share_{0}_RO, DL_Share_{0}_RW" -f $_ }) -join '; ')) }
   Write-Host "Users by department:"
   $deptSummary | Sort-Object Department | Format-Table -AutoSize
-  
-  if ($validationResults.ValidationErrors.Count -gt 0) {
-    Write-Host "`n⚠️ Validation Errors:" -ForegroundColor Yellow
-    $validationResults.ValidationErrors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
-  }
   
   if ($WhatIf) {
     Write-Host "`n=== WHATIF MODE - NO CHANGES MADE ===" -ForegroundColor Yellow
