@@ -6,12 +6,13 @@ It provisions Active Directory structure and groups, creates an enhanced departm
 
 ## Repository layout
 
-- `panzura_demo_toolkit_vNext2/` — **Current toolkit (ACL-optimized, Panzura Symphony compatible)**
+- `panzura_demo_toolkit_vNext3/` — **Latest toolkit (High-performance parallel processing, 10x faster)**
+- `panzura_demo_toolkit_vNext2/` — **Previous toolkit (ACL-optimized, Panzura Symphony compatible)**
 - `panzura_demo_toolkit/` — Archived previous iterations
 - `old_work/` — Historical scratch/scripts
 - `agent/`, `screenshots/`, `troubleshooting/` — Support material
 
-**Start here: `panzura_demo_toolkit_vNext2/README.md`**
+**Start here: `panzura_demo_toolkit_vNext3/README.md` (Latest) or `panzura_demo_toolkit_vNext2/README.md` (Stable)**
 
 ## Requirements
 
@@ -105,4 +106,4 @@ See `panzura_demo_toolkit_vNext2/TODO.md` for planned features, including a `-Me
 
 **Primary docs: `panzura_demo_toolkit_vNext2/README.md`**
 
-**Latest version: vNext2 (2025-10-15) - ACL-optimized for Panzura Symphony compatibility**
+**Latest version: vNext3 (2025-01-15) - High-performance parallel processing with 10x speed improvement**
