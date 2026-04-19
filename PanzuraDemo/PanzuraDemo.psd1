@@ -1,6 +1,6 @@
 @{
   RootModule        = 'PanzuraDemo.psm1'
-  ModuleVersion     = '4.0.0'
+  ModuleVersion     = '4.1.0'
   GUID              = 'b7e5f0f1-8a91-4a8f-9b2c-3e5d1f2a6c8d'
   Author            = 'PanzuraDemo'
   CompanyName       = 'DemoCorp'

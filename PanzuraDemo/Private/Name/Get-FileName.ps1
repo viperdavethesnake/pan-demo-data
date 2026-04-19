@@ -124,7 +124,16 @@ function Expand-FileNameTokens {
             '^Customer$'  { $pools.Customers[$Rng.Next(0,$pools.Customers.Count)] }
             '^Matter$'    { $pools.Matters[$Rng.Next(0,$pools.Matters.Count)] }
             '^Topic$'     { $pools.Topics[$Rng.Next(0,$pools.Topics.Count)] }
-            '^Campaign$'  { "Campaign_{0}" -f $Rng.Next(100,999) }
+            '^Campaign$'  {
+                if ($pools.ContainsKey('Campaigns') -and $pools.Campaigns.Count -gt 0) {
+                    $pools.Campaigns[$Rng.Next(0,$pools.Campaigns.Count)]
+                } else { "Campaign_{0}" -f $Rng.Next(100,999) }
+            }
+            '^App$'       {
+                if ($pools.ContainsKey('Apps') -and $pools.Apps.Count -gt 0) {
+                    $pools.Apps[$Rng.Next(0,$pools.Apps.Count)]
+                } else { "App_{0}" -f $Rng.Next(1,100) }
+            }
             '^Feature$'   { $pools.Topics[$Rng.Next(0,$pools.Topics.Count)] }
             '^Component$' { $pools.Topics[$Rng.Next(0,$pools.Topics.Count)] }
             '^module$'    { ('Module_{0}' -f $Rng.Next(1,50)) }

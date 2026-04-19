@@ -5,7 +5,7 @@
 
 @{
   Metadata = @{
-    Version     = '4.0.0'
+    Version     = '4.1.0'
     Description = 'Full-scale messy enterprise NAS generator.'
   }
 
@@ -429,6 +429,31 @@
       'archived_{Topic}_{year}.pdf','old_{Topic}_{year}.xlsx',
       'legacy_{Topic}.docx'
     )
+    '*/Clients/*/Contracts/*'      = @('Contract_{Client}_{year}.pdf','MSA_{Client}.pdf','SoW_{Project}.docx','Renewal_{year}.pdf')
+    '*/Clients/*/Proposals/*'      = @('Proposal_{Client}_{date}.docx','Pitch_{Client}.pptx','Quote_{num}.xlsx')
+    '*/Clients/*/Invoices/*'       = @('Invoice_{Client}_{num}.pdf','Statement_{month}_{year}.pdf')
+    '*/Clients/*/Correspondence/*' = @('Email_{date}.msg','Letter_{date}.docx','Meeting_Notes_{date}.docx')
+    '*/Clients/*'                  = @('Account_Overview_{year}.docx','Plan_{year}.xlsx','Contact_Sheet.xlsx')
+    '*/Matters/*/Pleadings/*'      = @('Pleading_{date}.pdf','Complaint.pdf','Answer_{date}.pdf','Motion_{date}.pdf')
+    '*/Matters/*/Discovery/*'      = @('RequestFor_{Topic}.pdf','Response_{date}.pdf','Interrogatory_{num}.pdf','Deposition_{date}.pdf')
+    '*/Matters/*/Briefs/*'         = @('Brief_{date}.docx','Memo_{Topic}.docx','Opposition_{date}.pdf')
+    '*/Matters/*/Evidence/*'       = @('Exhibit_{num}.pdf','Evidence_{date}.pdf','Document_{num}.pdf')
+    '*/Matters/*/Correspondence/*' = @('Email_{date}.msg','OpposingCounsel_{date}.pdf','CourtFiling_{date}.pdf')
+    '*/Matters/*'                  = @('Matter_Summary.docx','Strategy_{year}.pdf','Billing_{month}_{year}.xlsx')
+    '*/Vendors/*/Contracts/*'      = @('Contract_{Vendor}_{year}.pdf','MSA_{Vendor}.pdf','Amendment_{year}.pdf')
+    '*/Vendors/*/POs/*'            = @('PO_{num}.pdf','PO_Amendment_{num}.pdf')
+    '*/Vendors/*/Invoices/*'       = @('Invoice_{Vendor}_{num}.pdf','Credit_Memo_{num}.pdf')
+    '*/Vendors/*/Statements/*'     = @('{Vendor}_Statement_{month}_{year}.xlsx','Reconciliation_{month}_{year}.xlsx')
+    '*/Vendors/*'                  = @('Vendor_Profile.docx','Contact_Sheet.xlsx','Scorecard_{year}.xlsx')
+    '*/Campaigns/*/Brief/*'        = @('Brief.docx','Audience_Spec.pdf','Budget.xlsx','Timeline.xlsx')
+    '*/Campaigns/*/Assets/*'       = @('Banner_{n}.png','Video_Hero.mp4','Social_{n}.png','Ad_{n}.jpg')
+    '*/Campaigns/*/Reports/*'      = @('Weekly_{date}.pdf','Final_Report.pdf','Metrics_{date}.xlsx')
+    '*/Campaigns/*/Email/*'        = @('Email_Template_{n}.html','Subject_Tests.xlsx','SendList_{date}.csv')
+    '*/Campaigns/*'                = @('Overview.docx','KPIs.xlsx','Retrospective.docx')
+    '*/Apps/*/Logs/*'              = @('application-{date}.log','error-{date}.log','audit-{date}.log','trace-{date}.log')
+    '*/Apps/*/Configs/*'           = @('production.config','staging.config','web.config','appsettings.json')
+    '*/Apps/*/Releases/*'          = @('release-{version}.zip','changelog-{version}.md','deploy-{version}.ps1')
+    '*/Apps/*'                     = @('README.md','ARCHITECTURE.pdf','OperationalRunbook.docx')
     'Temp/*'                = @(
       '~temp-{n}.tmp','tmp{hash}.tmp','~${name}.tmp','outfile_{n}.tmp',
       'cache_{n}.tmp'
@@ -473,7 +498,15 @@
       'Pacific Freight','Sierra Manufacturing','Granite Insurance','Liberty Finance',
       'Aurora Dynamics','Meridian Automotive','Sterling Properties','Atlas Shipping',
       'Phoenix Energy','Cypress Biotech','Delta Air','Everest Construction',
-      'Frontier Telecom','Harbor Holdings','Keystone Foods'
+      'Frontier Telecom','Harbor Holdings','Keystone Foods',
+      'Blackstone Capital','Redwood Partners','Sapphire Health','Obsidian Mining',
+      'Quartz Analytics','Emerald Hospitality','Ruby Security','Jade Technologies',
+      'Amber Networks','Onyx Software','Crimson Media','Indigo Research',
+      'Azure Pharma','Cobalt Manufacturing','Magenta Retail','Teal Logistics',
+      'Copper Industries','Iron Bridge Capital','Silver Creek Corp','Gold Standard LLC',
+      'Platinum Services','Diamond Construction','Pearl Maritime','Coral Reef Partners',
+      'Marble Holdings','Slate Partners','Flint Ventures','Ember Dynamics',
+      'Ashen Biotech','Cinder Networks'
     )
     Projects = @(
       'Phoenix','Apollo','Titan','Olympus','Kraken','Orion','Andromeda','Perseus',
@@ -497,29 +530,93 @@
     Matters = @(
       'Smith-v-Acme','ContractReview-2022','IP-Dispute-2023','Licensing-Agreement-2024',
       'MergerReview-Titan','AcquisitionDiligence-Apex','EmploymentClaim-2023',
-      'TradeSecret-2023','PatentInfringement-Orion','ClassAction-Vortex'
+      'TradeSecret-2023','PatentInfringement-Orion','ClassAction-Vortex',
+      'Regulatory-Inquiry-2022','DataBreachResponse-2023','ShareholderSuit-2024',
+      'SubpoenaResponse-Q3-2023','VendorDispute-Keystone','NDA-Violation-2024',
+      'Trademark-Opposition-2023','SEC-Investigation-2022','AntitrustReview-Nova',
+      'RealEstate-Acquisition-Austin','Insurance-Claim-2023','LaborBoard-Filing-2024',
+      'PatentLitigation-Helix','CopyrightInfringement-2023','SoftwareLicense-Audit',
+      'DivestitureReview-Sierra','IP-Assignment-2024','ExportControl-2023',
+      'DueDiligence-CypressAcq','RegulatoryFine-2024'
     )
     Topics = @(
       'Security','Compliance','Infrastructure','Deployment','Migration',
       'Performance','Optimization','Architecture','Integration','Automation',
       'Monitoring','Backup','Recovery','Scaling','Reliability'
     )
+    Apps = @(
+      'CustomerPortal','BillingSystem','InvoiceEngine','OrderManagement',
+      'WarehouseTrack','PayrollProcess','HRCore','BenefitsHub',
+      'LearningPortal','KnowledgeBase','HelpDesk','AssetTracker',
+      'FleetManagement','ExpenseReport','TravelBooking','FacilitiesMgr',
+      'IncidentTracker','ChangeMgmt','BuildPipeline','DeployAgent'
+    )
+    Campaigns = @(
+      'Spring-Launch-2024','Summer-Promo-2023','Fall-Retargeting','HolidayPush-2024',
+      'Q1-Webinar-Series','ContentRefresh-2023','PartnerBoost-2024','BrandRelaunch',
+      'CustomerWin-Back','LeadGen-Q2-2024','EnterprisePush-2023','SMB-Expansion',
+      'PaidSocial-Refresh','SEO-Overhaul-2024','EmailNurture-2023','ProductLaunch-Atlas',
+      'CompetitiveTakeout','ThoughtLeadership-Q3','RegionalExpansion-West',
+      'Podcast-Sponsorship-2024','EventSeries-2023','InfluencerPilot','ABM-Top50',
+      'WinBack-Enterprise','AnalystRelations-2024'
+    )
   }
 
   # --- Folder tree shape ------------------------------------------------
   FolderTree = @{
     ArchiveYearRange = @{ Start = 2015; End = 2024 }
+    # v4.1: per-year quarter subfolders under Archive to spread file density.
+    ArchiveQuarters  = $true
+
     UserHomeDirs = @{
-      DeptScoped   = $true
-      RootScoped   = $true
-      DeptUserCount = 12          # files placed for ~N users per dept in <Dept>/Users/
-      RootFraction = 0.4          # fraction of real users that also get root home dir
+      DeptScoped    = $true
+      RootScoped    = $true
+      # v4.1: $null means "create a home dir for every real user in the dept"
+      # (previously capped at 12). Dramatically expands folder count.
+      DeptUserCount = $null
+      # v4.1: fraction of real users that also get root-scoped home dir
+      # (previously 0.4). 1.0 = all real users get both.
+      RootFraction  = 1.0
     }
+
     MaxDepth        = 7
     CleanNamesOnly  = $true
     ProjectsPerDept = @{ Min = 2; Max = 4 }
+    # v4.1: every project gets these subs (previously 33% chance each).
+    ProjectSubs     = @('Planning','Execution','Review','Resources','Documentation')
     LegacyFolderChance = @{ DeptLevel = 0.30; SubDuplicate = 0.25 }
     CrossDeptFolders = @('Shared','Public','Inter-Department','Board','Vendors','__Archive','__OLD__','_install_files')
+
+    # --- v4.1 dept-specific folder classes ---------------------------
+    # Each entry drives per-dept folder generation. Set Enabled=$false to skip.
+    ClientFolders = @{
+      Enabled    = $true
+      PerDept    = @{ Sales = @{ Min = 20; Max = 40 } }
+      SubFolders = @('Contracts','Proposals','Invoices','Correspondence','Projects')
+    }
+    MatterFolders = @{
+      Enabled    = $true
+      PerDept    = @{ Legal = @{ Min = 15; Max = 25 } }
+      SubFolders = @('Pleadings','Discovery','Briefs','Correspondence','Evidence')
+    }
+    VendorFolders = @{
+      Enabled    = $true
+      PerDept    = @{
+        Procurement = @{ Min = 20; Max = 30 }
+        Finance     = @{ Min = 10; Max = 20 }
+      }
+      SubFolders = @('Contracts','POs','Invoices','Statements')
+    }
+    CampaignFolders = @{
+      Enabled    = $true
+      PerDept    = @{ Marketing = @{ Min = 15; Max = 25 } }
+      SubFolders = @('Brief','Assets','Reports','Email')
+    }
+    AppFolders = @{
+      Enabled    = $true
+      PerDept    = @{ IT = @{ Min = 12; Max = 20 } }
+      SubFolders = @('Logs','Configs','Releases')
+    }
   }
 
   # --- File generation --------------------------------------------------
@@ -532,13 +629,15 @@
     ArchiveYearOverrides = $true
     ArchiveYearWindowDays = 180
     LegacyFossilRate   = 0.08
+    # Heavy-tail; Ultra max capped at 100K so no NTFS directory hits the
+    # 200K+ insert-slowdown zone. See spec decision #24 for rationale.
     HeavyTailDistribution = @(
       @{ Name='Empty'; Pct=1;  Min=0;     Max=0      }
       @{ Name='Small'; Pct=45; Min=1;     Max=50     }
       @{ Name='Med';   Pct=25; Min=51;    Max=500    }
-      @{ Name='Large'; Pct=19; Min=501;   Max=5000   }
-      @{ Name='Mega';  Pct=9;  Min=5001;  Max=50000  }
-      @{ Name='Ultra'; Pct=1;  Min=50001; Max=500000 }
+      @{ Name='Large'; Pct=20; Min=501;   Max=5000   }
+      @{ Name='Mega';  Pct=8;  Min=5001;  Max=50000  }
+      @{ Name='Ultra'; Pct=1;  Min=50001; Max=100000 }
     )
     Attributes = @{
       ReadOnlyChance = 0.05

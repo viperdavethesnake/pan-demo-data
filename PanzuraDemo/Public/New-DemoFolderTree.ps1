@@ -177,22 +177,29 @@ function New-DemoFolderTree {
                     # parent gets backup-ops + dept DL RW
                     Set-AclPattern -Path $uPath -Pattern 'ProperAGDLP' -Context $ctx
                     Add-FolderAce -Path $uPath -Identity "$domain\GG_BackupOps" -Rights Modify
-                    # year sub-folders
+                    # Year sub-folders (+ optional quarter sub-folders per v4.1)
                     $yr = $Config.FolderTree.ArchiveYearRange
+                    $quarters = [bool]$Config.FolderTree.ArchiveQuarters
                     for ($y = [int]$yr.Start; $y -le [int]$yr.End; $y++) {
                         $yPath = Join-Path $uPath $y
                         & $rec $yPath
                         if ($rng.NextDouble() -lt 0.3) {
-                            # some year folders get orphan SID ACE
                             Set-AclPattern -Path $yPath -Pattern 'OrphanSidAce' -Context $ctx
+                        }
+                        if ($quarters) {
+                            foreach ($q in 'Q1','Q2','Q3','Q4') {
+                                & $rec (Join-Path $yPath $q)
+                            }
                         }
                     }
                 }
                 'Users' {
-                    # per-user home dirs (dept-scoped), sampled from this dept's users
+                    # Per-user home dirs (dept-scoped). v4.1: DeptUserCount = $null
+                    # means "all real users in the dept" — big folder-count lift.
                     $userPool = $userByDept[$deptName]
                     if ($userPool -and $userPool.Count -gt 0) {
-                        $take = [Math]::Min([int]$Config.FolderTree.UserHomeDirs.DeptUserCount, $userPool.Count)
+                        $cfgCount = $Config.FolderTree.UserHomeDirs.DeptUserCount
+                        $take = if ($null -eq $cfgCount) { $userPool.Count } else { [Math]::Min([int]$cfgCount, $userPool.Count) }
                         $picks = $userPool | Sort-Object { $rng.NextDouble() } | Select-Object -First $take
                         foreach ($sam in $picks) {
                             $hPath = Join-Path $uPath $sam
@@ -202,7 +209,6 @@ function New-DemoFolderTree {
                                 $acl.SetOwner([System.Security.Principal.NTAccount]("$domain\$sam"))
                                 Set-Acl -LiteralPath $hPath -AclObject $acl
                             } catch { Write-Verbose "Set home-dir owner failed: $($_.Exception.Message)" }
-                            # explicit user ACE
                             Add-FolderAce -Path $hPath -Identity "$domain\$sam" -Rights FullControl
                         }
                     }
@@ -212,20 +218,57 @@ function New-DemoFolderTree {
                     $maxP = [int]$Config.FolderTree.ProjectsPerDept.Max
                     $nProj = if ($maxP -le $minP) { $minP } else { $rng.Next($minP, $maxP + 1) }
                     $pool  = $Config.DataPools.Projects | Sort-Object { $rng.NextDouble() } | Select-Object -First $nProj
+                    # v4.1: every project gets the standard sub-folders (was 33% optional).
+                    $projSubs = $Config.FolderTree.ProjectSubs
+                    if (-not $projSubs) { $projSubs = @('Planning','Execution','Review','Resources','Documentation') }
                     foreach ($code in $pool) {
                         $pPath = Join-Path $uPath $code
                         & $rec $pPath
                         $pat = Get-AclMessRoll -Config $Config -Rng $rng
                         Set-AclPattern -Path $pPath -Pattern $pat -Context $ctx
-                        # Occasional deeper nesting (within MaxDepth)
-                        if ($rng.NextDouble() -lt 0.5) {
-                            foreach ($sub2 in @('Planning','Execution','Review','Resources','Documentation')) {
-                                if ($rng.NextDouble() -lt 0.5) {
-                                    & $rec (Join-Path $pPath $sub2)
-                                }
-                            }
+                        foreach ($sub2 in $projSubs) {
+                            & $rec (Join-Path $pPath $sub2)
                         }
                     }
+                }
+            }
+        }
+
+        # --- v4.1 dept-specific folder classes (Client/Matter/Vendor/Campaign/App) --
+        $deptFolderClasses = @(
+            @{ Key='ClientFolders';   Parent='Clients';   Pool='Clients' }
+            @{ Key='MatterFolders';   Parent='Matters';   Pool='Matters' }
+            @{ Key='VendorFolders';   Parent='Vendors';   Pool='Vendors' }
+            @{ Key='CampaignFolders'; Parent='Campaigns'; Pool='Campaigns' }
+            @{ Key='AppFolders';      Parent='Apps';      Pool='Apps' }
+        )
+        foreach ($fc in $deptFolderClasses) {
+            $fcCfg = $Config.FolderTree[$fc.Key]
+            if (-not $fcCfg -or -not $fcCfg.Enabled) { continue }
+            $perDept = $fcCfg.PerDept
+            if (-not $perDept -or -not $perDept.ContainsKey($deptName)) { continue }
+            $range = $perDept[$deptName]
+            $n = if ($range.Max -le $range.Min) { [int]$range.Min } else { $rng.Next([int]$range.Min, [int]$range.Max + 1) }
+            if ($n -le 0) { continue }
+
+            # Parent folder: <Dept>/<Parent>/ — create if missing (e.g. Sales/Clients).
+            $parentPath = Join-Path $deptPath $fc.Parent
+            if (-not (Test-Path -LiteralPath $parentPath)) { & $rec $parentPath }
+
+            # Sample N distinct names from the data pool.
+            $pool = $Config.DataPools[$fc.Pool]
+            $take = [Math]::Min($n, $pool.Count)
+            $picks = $pool | Sort-Object { $rng.NextDouble() } | Select-Object -First $take
+            foreach ($name in $picks) {
+                # Sanitize for filesystem: spaces/ampersands/etc. are OK on NTFS,
+                # but keep names clean per CleanNamesOnly invariant.
+                $clean = ($name -replace '[/\\:*?"<>|]', '_').Trim()
+                $nPath = Join-Path $parentPath $clean
+                & $rec $nPath
+                $pat = Get-AclMessRoll -Config $Config -Rng $rng
+                Set-AclPattern -Path $nPath -Pattern $pat -Context $ctx
+                foreach ($sub in $fcCfg.SubFolders) {
+                    & $rec (Join-Path $nPath $sub)
                 }
             }
         }
