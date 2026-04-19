@@ -17,12 +17,16 @@ $script:ModuleRoot = $PSScriptRoot
 
 $sparseSrc    = Get-Content -LiteralPath (Join-Path $ModuleRoot 'Private/Native/Sparse.cs')    -Raw
 $privilegeSrc = Get-Content -LiteralPath (Join-Path $ModuleRoot 'Private/Native/Privilege.cs') -Raw
+$securitySrc  = Get-Content -LiteralPath (Join-Path $ModuleRoot 'Private/Native/Security.cs')  -Raw
 
 if (-not ('PanzuraDemo.Native.Sparse' -as [type])) {
     Add-Type -TypeDefinition $sparseSrc -Language CSharp -ErrorAction Stop | Out-Null
 }
 if (-not ('PanzuraDemo.Native.Privilege' -as [type])) {
     Add-Type -TypeDefinition $privilegeSrc -Language CSharp -ErrorAction Stop | Out-Null
+}
+if (-not ('PanzuraDemo.Native.SecurityNative' -as [type])) {
+    Add-Type -TypeDefinition $securitySrc -Language CSharp -ErrorAction Stop | Out-Null
 }
 
 # Enable token privileges once for the process. Non-fatal if they fail —

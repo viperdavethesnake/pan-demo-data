@@ -3,19 +3,42 @@
 # expected to resolve names once up front and pass the cached string.
 # Privileges (SeRestore, SeTakeOwnership) are enabled at module load.
 
+# Module-scope cache of account name -> SID byte array. Populated lazily
+# on first use of an account in a run. 15 depts + 40 orphans + 10 svc +
+# N users = ~400-500 unique entries, each ~28 bytes = <20 KB total.
+$script:SidByteCache = @{}
+
+function Get-CachedSidBytes {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Account)
+    if (-not $script:SidByteCache.ContainsKey($Account)) {
+        # One LSA round-trip per distinct account per process.
+        $script:SidByteCache[$Account] = [PanzuraDemo.Native.SecurityNative]::GetSidBytesFromAccount($Account)
+    }
+    return $script:SidByteCache[$Account]
+}
+
+function Clear-DemoSidCache {
+    # Exposed for tests / rare cases where the LSA mapping changes mid-run.
+    $script:SidByteCache = @{}
+}
+
 function Set-FileOwnershipInternal {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
         [Parameter(Mandatory)][string]$OwnerAccount
     )
-    # Minimal FileSecurity with only Owner set. Set-Acl applies only the
-    # owner section; DACL/SACL are untouched (inheritance preserved).
-    # Benchmark: ~2,180 files/sec vs ~1,426 for Get-Acl + SetOwner + Set-Acl.
-    $sec = New-Object System.Security.AccessControl.FileSecurity
-    $acct = New-Object System.Security.Principal.NTAccount($OwnerAccount)
-    $sec.SetOwner($acct)
-    Set-Acl -LiteralPath $Path -AclObject $sec
+    # Native SetNamedSecurityInfoW with OWNER_SECURITY_INFORMATION. One
+    # kernel call. No Get-Acl read. No Set-Acl cmdlet wrapper. No LSA
+    # lookup (SID bytes cached). DACL/SACL untouched — inheritance preserved.
+    #
+    # Benchmark progression on this workload:
+    #   - Get-Acl + SetOwner + Set-Acl  : 1,426 files/sec  (baseline)
+    #   - Set-Acl with minimal FS        : 2,180 files/sec  (+53%)
+    #   - SetNamedSecurityInfoW P/Invoke : measured at smoke/benchmark
+    $sidBytes = Get-CachedSidBytes -Account $OwnerAccount
+    [PanzuraDemo.Native.SecurityNative]::SetOwner($Path, $sidBytes)
 }
 
 # Set-FileOwnershipBySid — set the owner to a raw SID string.
