@@ -369,26 +369,23 @@ $results = $fileWorkItems | ForEach-Object -ThrottleLimit $ThrottleLimit -Parall
             if ($rnd.NextDouble() -lt 0.02) { $attrs = $attrs -bor [IO.FileAttributes]::Hidden }
             [IO.File]::SetAttributes($filePath, $attrs)
             
-            # Apply timestamps
+            # Precompute historical timestamps (applied last so nothing overwrites them)
+            $ct = $null; $wt = $null; $at = $null
             if ($Touch) {
                 $fileDate = Get-RandomDate -MinDate $MinDate -MaxDate $MaxDate -Preset $DatePreset -Bias $RecentBias -rnd $rnd
                 $ct = $fileDate.AddMinutes(-($rnd.Next(0, 60)))
                 $wt = $fileDate.AddMinutes($rnd.Next(0, 120))
                 $at = $wt.AddMinutes($rnd.Next(0, 240))
-                
-                [IO.File]::SetCreationTime($filePath, $ct)
-                [IO.File]::SetLastWriteTime($filePath, $wt)
-                [IO.File]::SetLastAccessTime($filePath, $at)
             }
-            
-            # Add ADS
+
+            # Add ADS BEFORE timestamping (writing any stream bumps host LastWriteTime on NTFS)
             if ($ADS -and $rnd.NextDouble() -lt 0.15) {
                 try {
                     $adsPath = "${filePath}:Zone.Identifier"
                     Set-Content -Path $adsPath -Value "[ZoneTransfer]`r`nZoneId=3" -Stream "Zone.Identifier" -ErrorAction SilentlyContinue
                 } catch {}
             }
-            
+
             # Set ownership (if AD enabled) - match vNext2 logic
             if ($UseAD -and $UserOwnership) {
                 try {
@@ -429,7 +426,14 @@ $results = $fileWorkItems | ForEach-Object -ThrottleLimit $ThrottleLimit -Parall
                     # Else: Leave ownership as default (BUILTIN\Administrators) for non-departmental folders
                 } catch {}
             }
-            
+
+            # Apply timestamps LAST — no writes to the file (data or streams) after this point
+            if ($Touch) {
+                [IO.File]::SetCreationTime($filePath, $ct)
+                [IO.File]::SetLastAccessTime($filePath, $at)
+                [IO.File]::SetLastWriteTime($filePath, $wt)
+            }
+
             $syncHash.Created++
             return @{ Success = $true; Path = $filePath }
         } else {

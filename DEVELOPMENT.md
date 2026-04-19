@@ -4,11 +4,12 @@
 
 Phases:
 1) AD populate (`ad_populator.ps1`) — OUs, groups (GG_*, DL_Share_*), users, optional projects.
-2) Folders (`create_folders.ps1`) — `S:\Shared\<Dept>\{Projects,Archive,Temp,Sensitive,Vendors}` with ACLs, ownership, inheritance tweaks.
-3) Share ACLs (`set_share_acls.ps1`) — Admins Full, AllEmployees Read; cleanup of Everyone/duplicates.
-4) Files (`create_files.ps1`) — sparse files, realistic sizes/types, timestamps, attributes, ADS, ownership realism.
-5) Report (`demo_report.ps1`) — environment summary.
-6) Reset (`ad_reset.ps1`) — cleanup.
+2) Folders (`create_folders.ps1`) — `S:\Shared\<Dept>\{Projects,Archive,Temp,Sensitive,Vendors}` with NTFS ACLs, ownership, inheritance tweaks.
+3) Files (`create_files.ps1` or `create_files_parallel.ps1`) — sparse files, realistic sizes/types, timestamps, attributes, ADS, ownership realism.
+4) Report (`demo_report.ps1`) — environment summary.
+5) Reset (`ad_reset.ps1`) — cleanup.
+
+Share ACLs (`set_share_acls.ps1`) are out of scope — SMB share state is not a project success criterion.
 
 ## Design notes
 
@@ -20,8 +21,7 @@ Phases:
 
 - `ad_populator.ps1`: ensure OUs/groups, create users, optional project groups; summary output.
 - `create_folders.ps1`: create tree, set owner/ACLs, break inheritance randomly, remove broad read on Sensitive, simulate Deny on Temp.
-- `set_share_acls.ps1`: normalize share permissions; end state (Admins Full, AllEmployees Read).
-- `create_files.ps1`: per-dept extension weights, size distributions, timestamp realism, ADS tags, ownership realism.
+- `create_files.ps1` / `create_files_parallel.ps1`: per-dept extension weights, size distributions, timestamp realism, ADS tags, ownership realism. Invariant: inside the per-file write loop, ADS writes must happen **before** final timestamp application, since writing any NTFS stream bumps the host file's `LastWriteTime`. Timestamps are always the last step.
 - `ad_reset.ps1`: remove demo artifacts by prefix/OU scopes; summaries.
 - `demo_report.ps1`: summarize users/groups/folders; sample outputs.
 

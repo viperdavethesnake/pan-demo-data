@@ -42,9 +42,8 @@ Open an elevated PowerShell 7 session in `panzura_demo_toolkit_vNext2` and run:
 
 Notes:
 
-- Share path will be `\\<SERVER>\Shared` (backed by `S:\Shared`).
-- **vNext2 Fix**: ACL corruption patterns eliminated - Panzura Symphony scans complete without errors
-- If the share shows SIDs for a short period, re-run `./set_share_acls.ps1` or allow name resolution/replication to catch up.
+- Data lives at `S:\Shared` (NTFS). SMB share state is not a success criterion — `set_share_acls.ps1` exists but is out of scope for this project.
+- **vNext2 Fix**: ACL corruption patterns eliminated — Panzura Symphony scans complete without errors.
 
 ## Controls you'll use most
 
@@ -70,7 +69,6 @@ Then re-run the quick start.
 
 ## Troubleshooting tips
 
-- **SIDs in share ACLs**: run `./set_share_acls.ps1` again to normalize; confirm `GG_AllEmployees` exists.
 - **Sparse files**: generator uses `fsutil sparse setflag` + seek/write. If the backend disallows sparse, you'll see a clear error.
 - **Distribution across subfolders**: if `-MaxFiles` is small, early folders fill first. Increase `-MaxFiles` (e.g., 5000+).
 - **Timestamp issues**: All timestamp bugs have been resolved - files now have perfect historical timestamps with no current date contamination.
