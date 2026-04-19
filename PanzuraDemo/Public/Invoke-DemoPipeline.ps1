@@ -43,7 +43,8 @@ function Invoke-DemoPipeline {
         [ValidateSet('Uniform','RecentSkew','YearSpread','LegacyMess')][string]$DatePreset,
         [Nullable[int]]$RecentBias,
         [Nullable[datetime]]$MinDate,
-        [Nullable[datetime]]$MaxDate
+        [Nullable[datetime]]$MaxDate,
+        [switch]$Parallel
     )
 
     $cfg = Import-DemoConfig -Path $Config
@@ -99,7 +100,7 @@ function Invoke-DemoPipeline {
                     $bias= if ($RecentBias -ne $null) { [int]$RecentBias } elseif ($r.ContainsKey('RecentBias')) { [int]$r.RecentBias } else { [int]$cfg.Files.DefaultRecentBias }
                     $mind= if ($MinDate)     { [datetime]$MinDate } elseif ($r.ContainsKey('MinDate')) { [datetime]$r.MinDate } else { (Get-Date).AddYears(-3) }
                     $maxd= if ($MaxDate)     { [datetime]$MaxDate } elseif ($r.ContainsKey('MaxDate')) { [datetime]$r.MaxDate } else { (Get-Date) }
-                    $runOut += (New-DemoFile -Config $cfg -MaxFiles $mf -DatePreset $dp -RecentBias $bias -MinDate $mind -MaxDate $maxd)
+                    $runOut += (New-DemoFile -Config $cfg -MaxFiles $mf -DatePreset $dp -RecentBias $bias -MinDate $mind -MaxDate $maxd -Parallel:$Parallel)
                 }
                 $result.Files = $runOut
             }

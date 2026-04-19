@@ -23,8 +23,12 @@ function New-DemoFile {
 .PARAMETER MaxDate
 .PARAMETER RecentBias
 .PARAMETER Parallel
-    If specified, uses ForEach-Object -Parallel. AD + config snapshot is
-    captured before the parallel block; helpers are defined inline per spec.
+    Experimental. Uses ForEach-Object -Parallel for file IO; ownership + ACL
+    mess are post-passes either way. Bench data (decision log #19): parallel
+    is measurably SLOWER than sequential on NTFS for this workload because
+    (a) ACL ops serialize at the kernel, (b) per-item runspace serialization
+    overhead exceeds any kernel-concurrency gain. Default is sequential.
+    Leave this off unless you have a reason.
 #>
     [CmdletBinding()]
     param(
@@ -96,13 +100,211 @@ function New-DemoFile {
     # --- Folder-era cache ------------------------------------------------
     $eraCache = @{}
 
-    # --- Execute (sequential for smoke; -Parallel wraps in ForEach -Parallel) ---
+    # --- Execute ---
     $created = 0
     $errors = 0
     $start = Get-Date
     $ownershipHits = @{ DeptGroup=0; User=0; ServiceAccount=0; OrphanSid=0; BuiltinAdmin=0 }
     $classHits = @{}
     $manifestWriter = [System.IO.StreamWriter]::new($manifestPath, $false, [System.Text.Encoding]::UTF8)
+
+    if ($Parallel) {
+        # --- PARALLEL PATH ------------------------------------------------
+        # Parent plans every item (via same helpers as sequential), buffers
+        # into chunks, dispatches each chunk to Invoke-ParallelFileChunk
+        # (ForEach-Object -Parallel). Worker runspaces do pure IO only.
+        # Ownership + file-level ACL mess are applied in a post-pass after
+        # all chunks complete (icacls batch for owner, individual Set-Acl
+        # for the ~3% mess). This avoids ACL-path kernel serialization.
+        $throttle = [int]$Config.Parallel.ThrottleLimit
+        if ($throttle -le 0) { $throttle = [Environment]::ProcessorCount * 2 }
+        $chunkSize = 50000
+        $buffer = New-Object System.Collections.Generic.List[object]
+        $plannedPaths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        Write-Host ("  Parallel mode: throttle={0}, chunkSize={1}" -f $throttle, $chunkSize)
+
+        try {
+            foreach ($row in $plan) {
+                if (($created + $buffer.Count) -ge $MaxFiles) { break }
+                $folder = $row.Path
+                $relFolder = Get-RelativeFolderPath -Path $folder -ShareRoot $root
+                $dept = Resolve-DeptFromPath -Path $folder -ShareRoot $root -Departments $Config.Departments
+                if (-not $dept) { $dept = 'General' }
+                $deptRec = $Config.Departments | Where-Object { $_.Name -eq $dept } | Select-Object -First 1
+                if (-not $deptRec) { $deptRec = $Config.Departments[0] }
+
+                $era = Get-FolderEra -FolderPath $folder -Cache $eraCache `
+                    -MinDate $MinDate -MaxDate $MaxDate -DatePreset $DatePreset `
+                    -RecentBias $RecentBias `
+                    -ArchiveYearOverrides ([bool]$Config.Files.ArchiveYearOverrides) -Rng $rng
+
+                for ($i = 0; $i -lt $row.Count; $i++) {
+                    if (($created + $buffer.Count) -ge $MaxFiles) { break }
+                    try {
+                        $hintExt = Get-WeightedChoice -Weights $deptRec.Extensions -Rng $rng
+                        if (-not $Config.ExtensionProperties.ContainsKey($hintExt)) { continue }
+
+                        $class = Get-FileClassRoll -Config $Config -RelFolderPath $relFolder -Rng $rng
+                        if (-not $classHits.ContainsKey($class.Name)) { $classHits[$class.Name] = 0 }
+                        $classHits[$class.Name]++
+
+                        $ct = $null
+                        if ($class.Name -in @('Dormant','LegacyArchive')) {
+                            $oldUpper = (Get-Date).AddDays(-1096)
+                            $oldLower = (Get-Date).AddDays(-1825)
+                            $span = ($oldUpper - $oldLower).TotalDays
+                            $ct = $oldLower.AddDays($rng.NextDouble() * $span)
+                        } elseif ($Config.Files.FolderCoherence) {
+                            $window = [int]$Config.Files.FolderEraWindowDays
+                            $ct = Get-EraJitteredDate -Era $era -WindowDays $window -NowClamp $MaxDate -MinClamp $MinDate -Rng $rng
+                        } else {
+                            $ct = Get-RealisticDate -MinDate $MinDate -MaxDate $MaxDate -Preset $DatePreset -Bias $RecentBias -Rng $rng
+                        }
+                        $ts = Get-FileTimestampSet -Creation $ct -FileClass $class -NowClamp $MaxDate -Rng $rng
+
+                        $fname = Get-FileName -Config $Config -RelFolderPath $relFolder -Extension $hintExt -CreationTime $ts.CreationTime -Department $dept -Rng $rng
+                        $ext = [IO.Path]::GetExtension($fname).ToLower()
+                        if (-not $Config.ExtensionProperties.ContainsKey($ext)) {
+                            $fname = $fname + $hintExt
+                            $ext = $hintExt
+                        }
+                        $sizeKB = $rng.Next([int]$Config.ExtensionProperties[$ext].MinKB, [int]$Config.ExtensionProperties[$ext].MaxKB + 1)
+                        if ($sizeKB -lt 1) { $sizeKB = 1 }
+                        $sizeBytes = [long]$sizeKB * 1024L
+
+                        $filePath = Join-Path $folder $fname
+                        # Uniqueness across this run's planned paths AND pre-existing files.
+                        if ($plannedPaths.Contains($filePath) -or (Test-Path -LiteralPath $filePath)) {
+                            $filePath = Join-Path $folder ("{0}_{1}{2}" -f ([IO.Path]::GetFileNameWithoutExtension($fname)), $rng.Next(10000,99999), $ext)
+                        }
+                        [void]$plannedPaths.Add($filePath)
+
+                        $hdr = Write-FileMagic -Config $Config -Extension $ext -CreationTime $ts.CreationTime
+
+                        # Attributes
+                        $attrs = [int][IO.FileAttributes]::Normal
+                        if ($rng.NextDouble() -lt [double]$Config.Files.Attributes.ReadOnlyChance) { $attrs = [int][IO.FileAttributes]::ReadOnly }
+                        if ($rng.NextDouble() -lt [double]$Config.Files.Attributes.HiddenChance) {
+                            $attrs = $attrs -bor [int][IO.FileAttributes]::Hidden
+                            if ($attrs -band [int][IO.FileAttributes]::Normal) { $attrs = $attrs -band -bnot [int][IO.FileAttributes]::Normal }
+                        }
+                        $adsWanted = $rng.NextDouble() -lt [double]$Config.Files.Attributes.AdsChance
+
+                        # Owner
+                        $owner = Resolve-OwnerForFile -Config $Config -FilePath $filePath -Department $dept -ADCache $adCache -Rng $rng
+
+                        # File-level ACL mess decision (pre-compute; worker just applies)
+                        $roll = $rng.NextDouble()
+                        $aclOp = 'None'
+                        $aclIdentity = $null
+                        $acc = 0.0
+                        foreach ($key in @('PureInheritance','ExplicitUserAce','ExplicitOrphanAce','DetachedAcl','ExplicitDenyAce')) {
+                            $acc += [double]$Config.Files.FileLevelAcl[$key]
+                            if ($roll -lt $acc) {
+                                switch ($key) {
+                                    'PureInheritance' { }
+                                    'ExplicitUserAce' {
+                                        $sams = $adCache.ByDept[$dept]
+                                        if ($sams -and $sams.Count -gt 0) {
+                                            $pick = $sams[$rng.Next(0, $sams.Count)]
+                                            $aclOp = 'AllowAce'
+                                            $aclIdentity = "$($adCache.Domain)\$pick"
+                                        }
+                                    }
+                                    'ExplicitOrphanAce' {
+                                        if ($adCache.Orphans.Count -gt 0) {
+                                            $o = $adCache.Orphans[$rng.Next(0, $adCache.Orphans.Count)]
+                                            $aclOp = 'AllowAce'
+                                            $aclIdentity = "$($adCache.Domain)\$o"
+                                        }
+                                    }
+                                    'DetachedAcl' { $aclOp = 'Detach' }
+                                    'ExplicitDenyAce' {
+                                        $aclOp = 'DenyAce'
+                                        $aclIdentity = "$($adCache.Domain)\GG_Contractors"
+                                    }
+                                }
+                                break
+                            }
+                        }
+
+                        $buffer.Add([pscustomobject]@{
+                            Path        = $filePath
+                            Size        = $sizeBytes
+                            Hdr         = $hdr
+                            Attrs       = $attrs
+                            Ads         = $adsWanted
+                            Owner       = $owner.Account
+                            OwnerBucket = $owner.Bucket
+                            AclOp       = $aclOp
+                            AclIdentity = $aclIdentity
+                            CT          = $ts.CreationTime
+                            WT          = $ts.LastWriteTime
+                            AT          = $ts.LastAccessTime
+                            ClassName   = $class.Name
+                        })
+
+                        # Flush when chunk is full
+                        if ($buffer.Count -ge $chunkSize) {
+                            $r = Invoke-ParallelFileChunk -Chunk $buffer -ThrottleLimit $throttle
+                            $created += $r.Created
+                            $errors  += $r.Errors
+                            foreach ($it in $r.Items) {
+                                if ($it.OwnerBucket -and $ownershipHits.ContainsKey($it.OwnerBucket)) { $ownershipHits[$it.OwnerBucket]++ }
+                                $manifestWriter.WriteLine((@{
+                                    p=$it.Path; s=$it.Size; o=$it.Owner; b=$it.OwnerBucket; c=$it.ClassName
+                                    ct=$it.CT.ToString('o'); wt=$it.WT.ToString('o'); at=$it.AT.ToString('o')
+                                } | ConvertTo-Json -Compress))
+                            }
+                            $buffer.Clear()
+                            $elapsed = ((Get-Date) - $start).TotalSeconds
+                            $rate = if ($elapsed -gt 0) { $created / $elapsed } else { 0 }
+                            Write-Host ("  [parallel] {0,8}/{1,-8} ({2:N0}/s, {3} errors)" -f $created, $MaxFiles, $rate, $errors)
+                        }
+                    } catch {
+                        $errors++
+                        Write-Verbose ("Plan error: {0}" -f $_.Exception.Message)
+                    }
+                }
+            }
+            # Flush remainder
+            if ($buffer.Count -gt 0) {
+                $r = Invoke-ParallelFileChunk -Chunk $buffer -ThrottleLimit $throttle
+                $created += $r.Created
+                $errors  += $r.Errors
+                foreach ($it in $r.Items) {
+                    if ($it.OwnerBucket -and $ownershipHits.ContainsKey($it.OwnerBucket)) { $ownershipHits[$it.OwnerBucket]++ }
+                    $manifestWriter.WriteLine((@{
+                        p=$it.Path; s=$it.Size; o=$it.Owner; b=$it.OwnerBucket; c=$it.ClassName
+                        ct=$it.CT.ToString('o'); wt=$it.WT.ToString('o'); at=$it.AT.ToString('o')
+                    } | ConvertTo-Json -Compress))
+                }
+                $buffer.Clear()
+            }
+        } finally {
+            $manifestWriter.Close()
+        }
+
+        $elapsed = ((Get-Date) - $start)
+        Write-Host ("  Created: {0} files, {1} errors, {2} (parallel)" -f $created, $errors, $elapsed.ToString('mm\:ss'))
+        return [pscustomobject]@{
+            Created       = $created
+            Errors        = $errors
+            Duration      = $elapsed
+            ManifestPath  = $manifestPath
+            PlanPath      = $planPath
+            OwnershipHits = $ownershipHits
+            ClassHits     = $classHits
+            Mode          = 'Parallel'
+            Throttle      = $throttle
+        }
+    }
+
+    # --- SEQUENTIAL PATH --------------------------------------------------
+    # Ownership + file-level ACL mess are applied INLINE (good NTFS cache
+    # locality: Set-Acl hits immediately after file creation while metadata
+    # is hot). Set-FileOwnershipInternal uses minimal FileSecurity to skip
+    # the Get-Acl read.
     try {
         foreach ($row in $plan) {
             $folder = $row.Path
@@ -204,7 +406,7 @@ function New-DemoFile {
                         } catch { Write-Verbose "ADS write failed: $($_.Exception.Message)" }
                     }
 
-                    # Owner (step 6)
+                    # Owner (inline; Set-FileOwnershipInternal uses minimal FileSecurity — 53% faster than Get-Acl+Set-Acl)
                     $owner = Resolve-OwnerForFile -Config $Config -FilePath $filePath -Department $dept -ADCache $adCache -Rng $rng
                     try {
                         Set-FileOwnershipInternal -Path $filePath -OwnerAccount $owner.Account
@@ -213,7 +415,7 @@ function New-DemoFile {
                         Write-Verbose ("Ownership set failed for {0} -> {1}: {2}" -f $filePath, $owner.Account, $_.Exception.Message)
                     }
 
-                    # File-level ACL mess
+                    # File-level ACL mess (inline)
                     $roll = $rng.NextDouble()
                     $acc = 0.0
                     foreach ($key in @('PureInheritance','ExplicitUserAce','ExplicitOrphanAce','DetachedAcl','ExplicitDenyAce')) {
@@ -291,5 +493,6 @@ function New-DemoFile {
         PlanPath      = $planPath
         OwnershipHits = $ownershipHits
         ClassHits     = $classHits
+        Mode          = 'Sequential'
     }
 }
