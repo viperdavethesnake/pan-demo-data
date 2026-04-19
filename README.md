@@ -6,13 +6,10 @@ It provisions Active Directory structure and groups, creates an enhanced departm
 
 ## Repository layout
 
-- `panzura_demo_toolkit_vNext3/` — **Latest toolkit (High-performance parallel processing, 10x faster)**
-- `panzura_demo_toolkit_vNext2/` — **Previous toolkit (ACL-optimized, Panzura Symphony compatible)**
-- `panzura_demo_toolkit/` — Archived previous iterations
-- `old_work/` — Historical scratch/scripts
-- `agent/`, `screenshots/`, `troubleshooting/` — Support material
+- `panzura_demo_toolkit_vNext2/` — **Canonical toolkit.** Full pipeline: AD populate, folders, share ACLs, file generation (sequential + optional parallel), reset, report. Includes `create_files_parallel.ps1` for PowerShell 7+ users (drop-in 2.26x-faster alternative to `create_files.ps1`).
+- `archive_vNext3_incomplete/` — Archived. vNext3 was only a single-script optimization; it depended on copying vNext2's AD/folder/reset/report scripts and was never a complete toolkit. Its parallel file creator has been folded into vNext2.
 
-**Start here: `panzura_demo_toolkit_vNext3/README.md` (Latest) or `panzura_demo_toolkit_vNext2/README.md` (Stable)**
+**Start here: `panzura_demo_toolkit_vNext2/README.md`**
 
 ## Requirements
 
@@ -106,4 +103,12 @@ See `panzura_demo_toolkit_vNext2/TODO.md` for planned features, including a `-Me
 
 **Primary docs: `panzura_demo_toolkit_vNext2/README.md`**
 
-**Latest version: vNext3 (2025-01-15) - High-performance parallel processing with 10x speed improvement**
+### Optional: parallel file creation (PowerShell 7+)
+
+```powershell
+# Same flags as create_files.ps1, but uses ForEach-Object -Parallel (~2.26x faster, measured).
+./create_files_parallel.ps1 -MaxFiles 10000 -DatePreset RecentSkew -RecentBias 20
+./create_files_parallel.ps1 -MaxFiles 50000 -ThrottleLimit 8   # 0 = auto (CPU*2)
+```
+
+Requires PS 7.5+. Not a replacement for `create_files.ps1` — just a faster alternative for large runs.
