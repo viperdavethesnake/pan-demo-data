@@ -4,92 +4,104 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-PowerShell toolkit that provisions a realistic, "messy" enterprise file server (Active Directory + NTFS share on `S:\Shared`) for Panzura Symphony demos and testing. It creates AD OUs/groups/users, a departmental folder tree, and large numbers of sparse files with realistic timestamps, sizes, extensions, attributes, and ownership.
+PowerShell + AD toolkit that provisions a realistic, messy enterprise file share (AD under `OU=DemoCorp,DC=demo,DC=panzura`, NTFS tree on `S:\Shared`) for Panzura Symphony demos and testing. Generates millions of sparse files with coherent historical timestamps, per-department extension/size/ownership distributions, and engineered ACL mess (orphan SIDs, lazy-AGDLP, Deny, Everyone, broken inheritance).
 
-## Repository layout
+## Canonical tooling
 
-- `panzura_demo_toolkit_vNext2/` — **Canonical toolkit.** Pipeline (AD, folders, files, reset, report). Includes both `create_files.ps1` (sequential, PS 5.1+) and `create_files_parallel.ps1` (PS 7.5+, ~2.26x faster, same flags).
-- `archive_vNext3_incomplete/` — Archived. Originally shipped only `create_files_parallel.ps1` + `set_privs.psm1` and required copying the rest from vNext2; the parallel script has been folded into vNext2 and the rest of the directory is kept only for the audit/perf docs (`CURSOR_AGENT_AUDIT.md`, `OPTIMIZATION_SUMMARY.md`, `PERFORMANCE_REPORT.md`). Do not resurrect as a separate toolkit.
+**PanzuraDemo module at `PanzuraDemo/`** — version 4.1.0. Everything else is orchestration around it.
 
-`old_work/`, `agent/`, `screenshots/`, `troubleshooting/` are referenced in the root README as historical/support material but are not present in the current working tree.
+Public commands (after `Import-Module`):
+
+- `Import-DemoConfig` — load `config/default.psd1` or `config/smoke.psd1`
+- `Test-DemoPrerequisite` — pre-flight checks
+- `New-DemoADPopulation` — OUs / GG_* / DL_Share_* / users / service accounts
+- `New-DemoFolderTree` — tree + NTFS ACLs on `S:\Shared`
+- `New-DemoFile` — sparse-file generator (sequential — do NOT use `-Parallel`, see invariants)
+- `Remove-DemoOrphanUser` — deletes flagged "Former employee" accounts to leave orphan SIDs on files
+- `Get-DemoReport` — environment summary
+- `Reset-DemoEnvironment` — tear down AD + SMB share (does NOT touch `S:\Shared` contents)
+- `Test-DemoSmokeVerification` — post-smoke spec checks
+- `Invoke-DemoPipeline` — composes the above by phase
+
+Orchestration scripts at repo root:
+
+- `build-10M.ps1` — production layered 4-pass build (L1 LegacyMess -10y, L2 YearSpread -10y, L3 RecentSkew -3y, L4 Deadbeat 2019 cohort). ~8.5 h wall clock, ~10 M files, ~85 TB logical / ~1.2 TB physical sparse.
+- `spot-check.ps1` — samples 100 random files + 10 folders from the manifest, verifies sparse flag / timestamps / owner / ACL against expected values.
 
 ## Commands
 
-All commands are PowerShell, run elevated. vNext2 is the default working directory unless a parallel file creation run is needed.
-
-End-to-end (from `panzura_demo_toolkit_vNext2/`):
+All PowerShell, run elevated. Always `pwsh` (7.5+), never `powershell` (5.1 fails silently).
 
 ```powershell
-./pre_flight.ps1
-./ad_populator.ps1 -BaseOUName DemoCorp -UsersPerDeptMin 8 -UsersPerDeptMax 75 -CreateAccessTiers -CreateAGDLP -ProjectsPerDeptMin 1 -ProjectsPerDeptMax 4 -VerboseSummary
-./create_folders.ps1 -UseDomainLocal
-./create_files.ps1 -MaxFiles 10000 -DatePreset RecentSkew
-./demo_report.ps1 -ShowSamples -SampleUsers 5
+# Import (always first)
+Import-Module '<repo>\PanzuraDemo\PanzuraDemo.psd1' -Force
+
+# Probe current state (read-only)
+$cfg = Import-DemoConfig -Path default
+Get-DemoReport -Config $cfg
+
+# Smoke (4 depts, ~2000 files, ~16 s)
+Invoke-DemoPipeline -Config smoke -Scenario Smoke -Phase All
+Test-DemoSmokeVerification -Config (Import-DemoConfig -Path smoke)
+
+# Wipe (AD + SMB share only — filesystem separately)
+Reset-DemoEnvironment -Config $cfg -IncludeShare -IncludeLegacyGroups -Confirm:$false
+Get-ChildItem 'S:\Shared' -Force | ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+
+# Full 10 M build
+pwsh -NoProfile -File '.\build-10M.ps1'
+
+# Verify a completed build
+pwsh -NoProfile -File '.\spot-check.ps1'
 ```
-
-Parallel file creation (optional, requires PS 7.5+):
-
-```powershell
-./create_files_parallel.ps1 -MaxFiles 10000 -DatePreset RecentSkew -RecentBias 20
-./create_files_parallel.ps1 -MaxFiles 50000 -ThrottleLimit 8   # tune threads; 0 = auto (CPU*2)
-./create_files_parallel.ps1 -MaxFiles 10000 -NoAD              # skip AD ownership pass
-```
-
-Reset everything:
-
-```powershell
-./ad_reset.ps1 -BaseOUName DemoCorp -DoUsers -DoGroups -DoOUs -PurgeBySamPrefixes -Confirm:$false -VerboseSummary
-```
-
-Targeted re-runs:
-
-- `./test_permissions.ps1` — smoke-test ACL behavior.
-- `./clean_shared.ps1` / `./create_temp_pollution.ps1` — scrub or reintroduce Temp-folder junk.
-
-> **Share ACLs are out of scope.** `set_share_acls.ps1` still exists in the toolkit but is not part of the canonical pipeline — SMB share state is not a success criterion for this project. Don't add it back as a pipeline step.
-
-Key parameters (see `DEVELOPMENT.md` for full list):
-
-- Files: `-MaxFiles`, `-DatePreset` (`RecentSkew`|`Uniform`|`YearSpread`|`LegacyMess`), `-MinDate`/`-MaxDate`, `-RecentBias`, `-Touch`, `-ADS`.
-- Folders: `-Departments`, `-UseDomainLocal`, `-CreateShare`.
-- AD populator: `-UsersPerDeptMin/Max`, `-CreateAccessTiers`, `-CreateAGDLP`, `-ProjectsPerDeptMin/Max`.
 
 ## Pipeline architecture
 
-Canonical phases, executed in order. Each script is designed to be independently re-runnable:
+Canonical phases, composed by `Invoke-DemoPipeline -Phase`:
 
-1. **AD populate** (`ad_populator.ps1`) — OUs under `BaseOUName`, AGDLP groups (`GG_*` global, `DL_Share_*` domain-local), users, optional project groups. Uniqueness enforced via sam-name prefixes so `ad_reset.ps1 -PurgeBySamPrefixes` can cleanly remove everything.
-2. **Folder tree** (`create_folders.ps1`) — Builds 185+ folder types under `S:\Shared\<Dept>\...` (Projects, Archive, Temp, Sensitive, Vendors, cross-department `LEGACY_*`/`_MIXED`). Sets ownership, breaks inheritance in places, removes broad read on `Sensitive`, simulates Deny ACEs on `Temp`.
-3. **File generation** (`create_files.ps1` sequential, or `create_files_parallel.ps1`) — Per-department extension weights and size distributions; sparse files created via `fsutil sparse setflag` + seek/write; realistic timestamps (creation/last-write/last-access coherent); attributes, ADS tags, and ownership realism (~75% group-owned, ~25% user-owned). Cross-department folders fall back to `GG_AllEmployees` owner.
-4. **Report** (`demo_report.ps1`) — Environment summary with optional sampling.
-5. **Reset** (`ad_reset.ps1`) — Removes demo AD artifacts by prefix/OU scope.
+1. **PreFlight** — validates S: drive, AD connectivity, elevation, PS version.
+2. **ADPopulate** — OUs under `BaseOUName` (default `DemoCorp`), AGDLP groups (`GG_*` global, `DL_Share_*_RW` / `_RO` domain local), users with per-dept counts, service accounts, orphan-flagged "Former employee" users. Uniqueness enforced via sam-name prefixes so `Reset-DemoEnvironment` can clean everything.
+3. **Folders** — `S:\Shared\<Dept>\{Projects,Archive/<year>/<quarter>,Temp,Sensitive,Vendors,...}` plus cross-dept folders (`Board`, `Inter-Department`, `Public`, `Users`, `_install_files`, `__Archive`, `__OLD__`, `LEGACY_*`, `*_MIXED`). Deterministic inheritance breaks on `Sensitive`/`Board`/`IT/Credentials`/`Temp`/`Public`. Temp gets `Everyone:Modify` + `GG_Contractors:(Deny)`.
+4. **Files** — `New-DemoFile` runs per-call with a `DatePreset` + date window. Per-dept extension weights, heavy-tail size distribution, sparse files via P/Invoke, coherent CT ≤ WT ≤ AT, per-file class (Active / Reference / Dormant / LegacyArchive / WriteOnceNeverRead / WriteOnceReadMany / Aging). Ownership 55/25/10/5/5 DeptGroup / User / OrphanSid / BuiltinAdmin / ServiceAccount. ACL patterns 55/25/10/5/5 ProperAGDLP / LazyGG / OrphanSidAce / EveryoneRead / DenyAce.
+5. **Orphanize** — deletes the "Former employee" users so their SIDs become unresolvable on disk.
+6. **Report** — `Get-DemoReport` with AD / FS / ACL / ownership counts.
 
-Share ACL normalization (`set_share_acls.ps1`) is explicitly not a pipeline step — see note above.
-
-### Parallel file-creation model (`create_files_parallel.ps1`)
-
-Scanning + work-item generation happens on the main thread, then fans out via `ForEach-Object -Parallel`. All helper functions are defined **inline** in the script (not imported) because `-Parallel` runspaces do not inherit the parent scope; `set_privs.psm1` is the only module dependency. Progress counters use synchronized hashtables. Do not refactor shared helpers into modules without accounting for this — doing so is what broke the earlier "Cursor agent" attempt documented in `archive_vNext3_incomplete/CURSOR_AGENT_AUDIT.md`. Real measured speedup is **~2.26x** (not the 10x claimed in `PERFORMANCE_REPORT.md` in the archive — those numbers are fictional; trust `OPTIMIZATION_SUMMARY.md`).
-
-**Per-file write ordering is load-bearing — do not reorder.** For each file, the inline worker must execute in this sequence:
-
-1. `New-Item` + `fsutil sparse setflag` + seek/write (file body)
-2. `SetAttributes` (ReadOnly/Hidden flags)
-3. Write ADS (`Zone.Identifier`) **before** timestamps
-4. Set owner/group via `Set-OwnerAndGroupFromModule` (DACL change; safe for NTFS MAC times)
-5. `SetCreationTime` / `SetLastAccessTime` / `SetLastWriteTime` **absolutely last**
-
-Rationale: writing **any** NTFS stream (including alternate data streams like `:Zone.Identifier`) bumps the host file's `LastWriteTime` to the current time. Stamping timestamps before the ADS write silently contaminated ~15% of files with the current date (historical `CreationTime` but present-day `LastWriteTime`). `Set-Acl` does not touch MAC times and is safe before Touch, but keeping Touch as the absolute last step is the invariant — nothing data/stream-modifying may run after.
+Share ACL normalization is intentionally NOT in the pipeline — SMB share state is not a demo success criterion.
 
 ## Design invariants (don't regress)
 
-- **No `-ClearExisting` on ACLs.** Removed in vNext2 because it produced `GDS_BAD_DIR_HANDLE` / scan failures in Panzura Symphony. ACL edits must be additive/targeted.
-- **AGDLP wiring must hold.** Users → `GG_*` (global) → `DL_Share_*` (domain local) → NTFS/share permissions. Don't assign users or `GG_*` groups directly to ACLs.
-- **Timestamp realism.** Generated files must not have current-date contamination; all three timestamps (creation, last-write, last-access) come from the same chosen historical date.
-- **Sparse-file generation.** If the backend rejects sparse flags, surface the error — do not silently fall back to dense writes (it blows up disk use at demo scale).
-- **Idempotency + safety.** Mutating scripts expose `-WhatIf`/`-Confirm` and rely on existence checks; destructive scripts require explicit flags.
+- **`pwsh` 7.5+ required.** `powershell` 5.1 fails module import silently and cascades to "command not found".
+- **No `-Parallel` on file generation.** `ForEach-Object -Parallel` measured slower than sequential at this workload (V4_SPEC.md decision #19). Native `SetNamedSecurityInfoW` P/Invoke sequential path is the fastest (decision #23, +42% wall-clock, 11× ACL speedup).
+- **No `-ClearExisting` on ACLs.** Historical Panzura Symphony `GDS_BAD_DIR_HANDLE` / scan failures. ACL edits are additive/targeted only.
+- **AGDLP wiring must hold.** Users → `GG_*` (global) → `DL_Share_*` (domain local) → NTFS/share permissions. Don't put users or `GG_*` directly on production ACLs (some engineered-mess folders intentionally DO have `GG_*` direct — that's the lazy-AGDLP anti-pattern we want visible).
+- **Per-file write order is load-bearing.** Inside `New-DemoFile`'s write loop, for each file:
+  1. `New-Item` + `fsutil sparse setflag` + seek/write (body)
+  2. `SetAttributes` (ReadOnly/Hidden)
+  3. Write ADS (`Zone.Identifier`) **before** timestamps
+  4. Set owner via `Set-FileOwnershipInternal` (native SetNamedSecurityInfoW) — safe for MAC times
+  5. `SetCreationTime` / `SetLastAccessTime` / `SetLastWriteTime` **absolutely last**
+
+  Rationale: writing any NTFS stream (including `:Zone.Identifier`) bumps the host file's `LastWriteTime` to "now." Stamping timestamps before the ADS write silently contaminated ~15% of files with present-day dates in pre-v4. Keep Touch as the absolute last step.
+- **Dormant / LegacyArchive CT is hard-pinned to 3–5 y ago** in `New-DemoFile.ps1` (lines 347–351), regardless of the preset's `MinDate`. The layered `build-10M.ps1` extends L1/L2 `MinDate` to `-10y` so preset-drawn ages blend smoothly with the dormant tail (no 3-y cliff).
+- **Sparse-file surfacing.** If the backend rejects `fsutil sparse setflag`, surface the error — don't silently fall back to dense writes (would blow up disk usage at demo scale).
+- **Idempotency + safety.** Mutating commands expose `-WhatIf` / `-Confirm`; destructive ones require explicit flags.
 
 ## Requirements
 
 - Windows with `S:` drive (NTFS, sparse support).
-- PowerShell 7.5+ for vNext3; 5.1+ acceptable for vNext2.
-- RSAT / `ActiveDirectory` module on the admin host; elevated session.
+- PowerShell 7.5+, elevated session.
+- RSAT / `ActiveDirectory` module.
+- Reference host: `PANZURA-SYM02`, domain `demo.panzura`, OU `DemoCorp`, share `AcmeShare` at `S:\Shared`.
+
+## Where things live
+
+| Area | File |
+|---|---|
+| Decision log (24 entries) | `docs/V4_SPEC.md` §18 |
+| Module config (depts, ACL ratios, file classes, etc.) | `PanzuraDemo/config/default.psd1` |
+| Smoke config | `PanzuraDemo/config/smoke.psd1` |
+| Production build recipe | `build-10M.ps1` |
+| Post-build verification | `spot-check.ps1` |
+| Dashboard / architect handoff pack | `docs/demo-dataset/` |
+| Session state | `RESUME.md` |
+| Legacy vNext2 preserved at | branch `legacy/vnext2` (retired 2026-04-20) |

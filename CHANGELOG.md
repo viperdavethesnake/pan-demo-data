@@ -1,228 +1,53 @@
-# Changelog - Panzura Demo Toolkit
+# Changelog
 
-All notable changes to the Panzura Demo Toolkit project are documented in this file.
+## [build-2026-04-20] — First production 10M build + design handoff
 
-## [vNext2] - 2025-10-15 - ACL-Optimized Edition
+- `build-10M.ps1`: layered 4-pass production recipe (L1 LegacyMess -10y 3.5M, L2 YearSpread -10y 3M, L3 RecentSkew -3y 3M, L4 Deadbeat Corp 2019 Uniform 0.5M)
+- Verified run 2026-04-19 18:07 → 2026-04-20 02:53 (8 h 46 m wall clock): 9,962,001 files, 85.6 TB logical / ~1.2 TB physical sparse, 2,693 folders, 361 users, 0.016% error rate
+- `spot-check.ps1`: 100-file / 10-folder post-build verification — confirmed sparse flag, timestamps, ownership, ACL patterns all intact
+- `docs/demo-dataset/`: handoff pack for dashboard designers and architects — dataset snapshot, demo-narrative-and-widgets (9 storylines + SQL + JSON widget specs), build recipe + caveats
+- Retired `panzura_demo_toolkit_vNext2/` and `archive_vNext3_incomplete/` (preserved on branch `legacy/vnext2`). Rewrote `README.md` and `CLAUDE.md` to reflect PanzuraDemo module as canonical
 
-### 🔧 **CRITICAL FIXES**
-- **FIXED: Panzura Symphony scan errors** - Eliminated ACL corruption patterns that caused `ERR_DIRACLINFO_ANALYZEUNPROTECTEDDACL_FAILED` and `GDS_BAD_DIR_HANDLE` errors
-- **FIXED: Directory service lookup failures** - Removed `-ClearExisting` parameter from `set_privs.psm1` that was corrupting ACL structures
-- **FIXED: Inheritance breaking issues** - Simplified ACL patterns in `create_folders.ps1` to prevent malformed directory handles
+## [v4.1.0] — 2026-04-19 — Folder density expansion
 
-### 📊 **VALIDATION RESULTS**
-- **Before (vNext)**: 12-26 scan failures per 477k files (0.003% failure rate)
-- **After (vNext2)**: Zero scan errors on 8,700+ files
-- **Impact**: Project folders that previously failed now scan cleanly
+- Archive subtree now has per-year quarter subfolders (`Archive/<yyyy>/Q{1-4}`) to spread file density and keep NTFS insert performance below the 200K/folder cliff (spec decision #24)
+- User home dirs uncapped: every real user gets a dept-scoped home dir and a root-scoped home dir (previously capped at 12 dept homes / 40% root)
+- Per-project subfolder set (`Planning/Execution/Review/Resources/Documentation`) now mandatory instead of a 33%-per-sub roll
+- Added dept-specific folder classes via config: `ClientFolders` (Sales), `MatterFolders` (Legal), `VendorFolders` (Procurement/Finance), `CampaignFolders` (Marketing), `AppFolders` (IT)
+- Cross-dept folder list expanded to `Board`, `Vendors`, `Inter-Department`, `__Archive`, plus existing `Shared`, `Public`, `__OLD__`, `_install_files`
 
-### 🛠️ **TECHNICAL CHANGES**
+## [v4.0.0] — 2026-04-18 — Module rewrite (supersedes vNext2)
 
-#### set_privs.psm1
-- **REMOVED**: `-ClearExisting` parameter from `Grant-FsAccess` function
-- **REMOVED**: ACL clearing logic that was corrupting directory structures
-- **MAINTAINED**: All AD integration and security principal assignment
-
-#### create_folders.ps1
-- **SIMPLIFIED**: Inheritance patterns to prevent ACL corruption
-- **REMOVED**: Unnecessary inheritance breaking on subfolders
-- **MAINTAINED**: Department folder structure and permissions
-
-### ✅ **FEATURES PRESERVED**
-- Full AD integration with users, groups, and service accounts
-- Realistic enterprise folder structure (185+ folder types)
-- Sparse file creation for Panzura deduplication testing
-- Perfect timestamp realism (no current date contamination)
-- 100% AD-based ownership (users and groups)
-- Sophisticated file distribution (folder-aware normal distribution)
-
-### 📁 **FILES CHANGED**
-- `set_privs.psm1` - ACL management without corruption patterns
-- `create_folders.ps1` - Folder creation without inheritance issues
-- `README.md` - Updated to reflect vNext2 fixes
-- `panzura_demo_toolkit_vNext2/README.md` - Comprehensive vNext2 documentation
-- `panzura_demo_toolkit_vNext2/RUNBOOK.txt` - Updated workflow and examples
-
-### 🎯 **DEMO SCENARIOS**
-- "The Consultant's Nightmare" - 75K files, 12 years
-- "The Compliance Auditor's Dream" - 50K old files
-- "The IT Manager's Worst Day" - 150K files, 30 years
-- "The Merger & Acquisition Special" - 100K files with recent activity
-- "The Ransomware Recovery Demo" - 200K files with recent activity
-- "The GDPR Compliance Nightmare" - 300K files spanning 25 years
+- Replaces the vNext2 script collection (`panzura_demo_toolkit_vNext2/`) with a proper PowerShell module at `PanzuraDemo/`. Config-driven (`config/default.psd1`), public cmdlets, private helpers
+- Native `SetNamedSecurityInfoW` P/Invoke (`Private/Native/Security.cs` + `Set-FileOwnershipInternal`) replaces `Set-Acl` round-trips: **11× ACL speedup, +42% wall-clock** (spec decision #23). SID cache is process-lifetime, one LSA lookup per account
+- Coherent timestamp model: file-class rolls (Active / Reference / Dormant / LegacyArchive / WriteOnceNeverRead / WriteOnceReadMany / Aging) drive CT ≤ WT ≤ AT with per-class gap distributions. Anti-contamination disperses clamp overflows across the last 7 days instead of pinning to Now
+- Engineered ACL mess: `Mess.AclPatterns` with configurable ratios for ProperAGDLP / LazyGG / OrphanSid / EveryoneRead / DenyAce; deterministic inheritance breaks on Sensitive / Board / Public / IT/Credentials / Temp
+- Orphan SID story: configurable count of "Former employee" users created with real AD accounts, stamp file ownership, then get deleted post-build via `Remove-DemoOrphanUser`
+- Per-file manifests emitted as JSONL in `logs/`
+- 24-entry decision log in `docs/V4_SPEC.md` §18 captures rationale for every non-obvious choice
 
 ---
 
-## [vNext] - 2025-01-27 - Enhanced Enterprise Features
+## Pre-v4 history (`panzura_demo_toolkit_vNext2/`, retired 2026-04-20)
 
-### ✨ **NEW FEATURES**
-- **Perfect Timestamp Realism** - Eliminated all current date contamination
-- **100% AD Integration** - All files have proper AD owners and groups
-- **Enhanced Folder Structure** - 185+ folder types with year-based organization
-- **Sophisticated File Distribution** - Folder-aware normal distribution
-- **Service Account Integration** - Realistic enterprise security principals
+The script-collection era. Preserved on branch `legacy/vnext2` and in git history.
 
-### 🏗️ **ARCHITECTURE IMPROVEMENTS**
-- **Idempotent Operations** - Scripts can be run multiple times safely
-- **Comprehensive Error Handling** - Better error messages and recovery
-- **Performance Optimization** - Faster file creation and folder generation
-- **Logging Enhancement** - Detailed operation logs with timestamps
+### vNext2 — 2025-10-15 — ACL-optimized edition
 
-### 📊 **VALIDATION METRICS**
-- **File Creation**: ~10 files/second
-- **Folder Structure**: 201 folders (15 departments + subfolders)
-- **File Distribution**: Normal distribution across folder types
-- **AD Integration**: 100% proper ownership assignment
+- Eliminated Panzura Symphony scan errors: `ERR_DIRACLINFO_ANALYZEUNPROTECTEDDACL_FAILED` and `GDS_BAD_DIR_HANDLE` caused by the `-ClearExisting` parameter on `Grant-FsAccess`. Removed the parameter and the ACL-clearing code path — ACL edits became additive only
+- Simplified inheritance-breaking patterns in `create_folders.ps1` to prevent malformed directory handles
+- Validated: zero scan errors where vNext had 12–26 failures per 477K files
 
-### 🐛 **BUG FIXES**
-- **Timestamp Issues** - All timestamp bugs resolved
-- **File Ownership** - Enhanced folder structure properly maps to AD groups
-- **Sparse File Creation** - Improved sparse file handling
-- **Permission Inheritance** - Fixed ACL inheritance patterns
+### vNext — 2025-01-27 — Enhanced enterprise features
 
-### 📁 **FILES ADDED/MODIFIED**
-- `ad_populator.ps1` - Enhanced AD user/group creation
-- `ad_reset.ps1` - Comprehensive cleanup utilities
-- `create_folders.ps1` - Enhanced folder structure creation
-- `create_files.ps1` - Improved file generation with AD ownership
-- `set_privs.psm1` - Enhanced ACL management
-- `pre_flight.ps1` - Environment validation
-- `demo_report.ps1` - Comprehensive reporting
-- `sanity.ps1` - Permission testing utilities
+- First pass at the timestamp-realism and AD-ownership goals later formalized in v4
+- 185+ folder types, service account integration, sophisticated file distribution
+- Some claims here were aspirational; v4 delivers them with a rigorous design
 
----
+### v5 and earlier (2024)
 
-## [v5] - 2024-09 - Idempotent User Creation
-
-### 🔧 **IMPROVEMENTS**
-- **Idempotent User Creation** - Scripts can be run multiple times without errors
-- **Unique SAM Names** - Prevents conflicts when creating multiple users
-- **Better Error Handling** - Improved error messages and recovery
-- **Performance Optimization** - Faster execution times
-
-### 🐛 **BUG FIXES**
-- **User Creation Conflicts** - Fixed duplicate user creation errors
-- **Permission Issues** - Resolved ACL inheritance problems
-- **File Creation Errors** - Fixed sparse file creation issues
-
----
-
-## [v4] - 2024-08 - Enhanced Folder Structure
-
-### ✨ **NEW FEATURES**
-- **Department Folders** - Finance, HR, Engineering, Sales, Legal, IT, Ops, Marketing
-- **Project Subfolders** - Projects, Archive, Temp, Sensitive, Vendors
-- **Year-based Organization** - Folders organized by year and project
-- **Cross-department Collaboration** - Shared folders for inter-department work
-
-### 🏗️ **ARCHITECTURE CHANGES**
-- **Modular Design** - Separated AD, folder, and file creation
-- **Configuration-driven** - Easy to modify departments and structure
-- **Logging System** - Comprehensive operation logging
-
----
-
-## [v3] - 2024-07 - AD Integration
-
-### ✨ **NEW FEATURES**
-- **Active Directory Integration** - Full AD user and group creation
-- **Realistic Security Principals** - Service accounts and security groups
-- **Permission Management** - Proper ACL assignment and inheritance
-- **Group-based Access** - Department-based access control
-
-### 🏗️ **ARCHITECTURE CHANGES**
-- **AD Module Integration** - PowerShell Active Directory module
-- **Security Principal Management** - Proper user and group handling
-- **Permission Inheritance** - NTFS permission inheritance patterns
-
----
-
-## [v2] - 2024-06 - File Generation
-
-### ✨ **NEW FEATURES**
-- **Sparse File Creation** - Efficient file generation for large datasets
-- **Timestamp Realism** - Historical timestamps without current date contamination
-- **File Type Diversity** - Multiple file types and sizes
-- **Performance Optimization** - Faster file creation
-
-### 🏗️ **ARCHITECTURE CHANGES**
-- **File Generation Engine** - Optimized file creation algorithms
-- **Timestamp Management** - Historical timestamp assignment
-- **Sparse File Support** - NTFS sparse file creation
-
----
-
-## [v1] - 2024-05 - Initial Release
-
-### ✨ **INITIAL FEATURES**
-- **Basic File Creation** - Simple file generation
-- **Folder Structure** - Basic departmental folders
-- **Permission Management** - Basic ACL assignment
-- **Reset Functionality** - Cleanup utilities
-
-### 🏗️ **FOUNDATION**
-- **PowerShell Scripts** - Core automation scripts
-- **NTFS Integration** - File system operations
-- **Basic Documentation** - Initial README and runbook
-
----
-
-## 🎯 **SUCCESS CRITERIA**
-
-### vNext2 (Current)
-- ✅ Panzura Symphony scans complete without errors
-- ✅ All files have proper AD ownership
-- ✅ Realistic enterprise mess created
-- ✅ Multiple scan runs show consistent results
-- ✅ ACL analysis completes without parameter errors
-
-### vNext (Previous)
-- ✅ Enhanced enterprise features implemented
-- ✅ Perfect timestamps achieved
-- ✅ 100% AD ownership maintained
-- ✅ Sophisticated file distribution working
-
-### v5 and Earlier
-- ✅ Idempotent operations working
-- ✅ Unique SAM names preventing conflicts
-- ✅ Better error handling implemented
-- ✅ Performance optimization achieved
-
----
-
-## 📈 **PERFORMANCE METRICS**
-
-### Current (vNext2)
-- **File Creation**: ~10 files/second
-- **Folder Structure**: 201 folders (15 departments + subfolders)
-- **File Distribution**: Normal distribution across folder types
-- **AD Integration**: 100% proper ownership assignment
-- **Scan Compatibility**: Zero Panzura Symphony errors
-
-### Historical
-- **vNext**: 12-26 scan failures per 477k files (0.003% failure rate)
-- **v5**: Improved execution times and error handling
-- **v4**: Enhanced folder structure with 185+ folder types
-- **v3**: Full AD integration with realistic security principals
-- **v2**: Sparse file creation and timestamp realism
-- **v1**: Basic file and folder creation
-
----
-
-## 🔮 **ROADMAP**
-
-### Planned Features
-- **Messy Mode** - Legacy junk, orphan SIDs, extra Deny ACEs
-- **Config-driven Parameters** - YAML/JSON configuration files
-- **Richer Reporting** - Enhanced analytics and reporting
-- **Cloud Integration** - Azure AD and cloud storage support
-- **Advanced Scenarios** - Ransomware recovery, compliance auditing
-
-### Future Versions
-- **vNext3** - Cloud integration and advanced scenarios
-- **vNext4** - Config-driven parameters and messy mode
-- **vNext5** - Enhanced reporting and analytics
-
----
-
-**Latest Version**: vNext2 (2025-10-15) - ACL-Optimized for Panzura Symphony compatibility
-
-**Production Status**: ✅ Tested and validated with 10,000+ files, zero scan errors
+- Idempotent user creation, unique SAM-name enforcement (v5)
+- Department + project + archive folder structure (v4)
+- Initial AD integration, permission management (v3)
+- Sparse file creation, historical timestamps (v2)
+- Initial release (v1)
