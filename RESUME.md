@@ -1,10 +1,14 @@
 # Resume notes — pan-demo-data
 
-**Last session: 2026-04-19 evening → 2026-04-20 early AM**
+**Last session: 2026-04-19 evening → 2026-04-20 morning**
 **User: microbarley@icloud.com**
 **Host: PANZURA-SYM02, domain demo.panzura, S:\ NVMe Gen4 DRAM, 16 CPU**
 
-## Where we are — built and documented
+## ⚠ Starting a fresh chat for the next version?
+
+Read [`docs/NEXT_VERSION_BRIEF.md`](docs/NEXT_VERSION_BRIEF.md) first. It captures the design inputs (C# rewrite candidates, config-format question, packaging options, open questions) collected at the end of the 2026-04-20 session.
+
+## Where we are — built, documented, cleaned
 
 ### Repo state
 
