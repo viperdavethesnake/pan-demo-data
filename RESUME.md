@@ -1,47 +1,85 @@
 # Resume notes — pan-demo-data
 
-**Last session: 2026-04-18**
+**Last session: 2026-04-19 evening → 2026-04-20 early AM**
 **User: microbarley@icloud.com**
+**Host: PANZURA-SYM02, domain demo.panzura, S:\ NVMe Gen4 DRAM, 16 CPU**
 
-## Context to rehydrate when we resume
+## Where we are — built and documented
 
-We reviewed the repo and decided vNext3 was not a real successor to vNext2 — it only ever shipped a single parallel file creator (`create_files_parallel.ps1`) and depended on copying the rest of the pipeline from vNext2. Its `PERFORMANCE_REPORT.md` also contained fictional 10x numbers; the real measured speedup is 2.26x (see `OPTIMIZATION_SUMMARY.md`).
+### Repo state
 
-## What changed this session
+- `main` at HEAD; this commit adds `build-10M.ps1` + `docs/demo-dataset/` (design handoff pack)
+- PanzuraDemo module version: **4.1.0** (unchanged — no code changes this session)
+- Tag on this commit: `build-2026-04-20`
 
-1. Copied `panzura_demo_toolkit_vNext3/create_files_parallel.ps1` → `panzura_demo_toolkit_vNext2/create_files_parallel.ps1` (drop-in alongside `create_files.ps1`, same flags, PS 7.5+ only).
-2. Renamed `panzura_demo_toolkit_vNext3/` → `archive_vNext3_incomplete/` via `git mv` (preserves audit/perf docs for history; not a working toolkit).
-3. Rewrote root `README.md` layout + quick-start sections to reflect vNext2 as canonical and parallel as optional.
-4. Created `CLAUDE.md` at repo root covering layout, commands, pipeline phases, and invariants (no `-ClearExisting`, AGDLP wiring, timestamp realism, sparse-file surfacing).
-5. Updated `CLAUDE.md` to match the consolidation (archive path, parallel script now lives in vNext2).
+### Demo dataset — built and on disk
 
-**Not committed.** Changes are staged/working-tree only — user hasn't asked for a commit yet.
+**10M-file messy NAS generated and verified.**
 
-## State at reboot
+- Wall clock: **8 h 46 m** (2026-04-19 18:07 → 2026-04-20 02:53)
+- **9,962,001 files · 85.6 TB logical · ~1.2 TB physical (sparse) · 2,693 folders**
+- **361 users / 15 depts / 18 `GG_*` / 30 `DL_Share_*` / 10 svc accounts**
+- 40 orphan-flagged users created and removed post-build → 999 K files now owned by unresolvable SIDs (~10%)
+- Dormancy: 69.8% of files with `LastAccess > 3 y`
+- **Deadbeat Corp 2019 cohort visible** in CT histogram: 9.63% vs. 3–4% in 2018/2020 (L4 layer, 500 K Uniform files, CT 2019-only)
+- Full phase timing + per-layer errors in `build-10M.log` (gitignored)
+- Per-file manifests in `logs/manifest_*.jsonl` (5.4 GB, gitignored)
 
-Run these after the server comes back to re-orient:
+### Layered build recipe
 
-```bash
-git -C "C:\Users\Administrator\Documents\pan-demo-data" status
-git -C "C:\Users\Administrator\Documents\pan-demo-data" diff --stat
-ls "C:\Users\Administrator\Documents\pan-demo-data\panzura_demo_toolkit_vNext2" | grep parallel
-ls "C:\Users\Administrator\Documents\pan-demo-data" | grep -i vnext
-```
+`build-10M.ps1` at repo root, kicks off 4 stacked file-generation layers:
 
-Expected:
-- vNext2 contains `create_files_parallel.ps1` alongside `create_files.ps1`.
-- `archive_vNext3_incomplete/` exists at repo root; `panzura_demo_toolkit_vNext3/` does not.
-- Modified: `README.md`, new: `CLAUDE.md`, `RESUME.md`.
-- The `git mv` rename of vNext3 → archive is already staged.
+| Layer | Files | Preset | Window | Purpose |
+|---|---:|---|---|---|
+| L1 | 3.5 M | LegacyMess | -10 y → now | Old-skewed spread, no 3y cliff |
+| L2 | 3.0 M | YearSpread | -10 y → now | Uniform fill across 10 y |
+| L3 | 3.0 M | RecentSkew bias=30 | -3 y → now (default) | Recent activity tail |
+| L4 | 0.5 M | Uniform | 2019-01-01 → 2019-12-31 | Deadbeat acquisition cohort |
 
-## Likely next steps
+Performance: L1 402 f/s (cold) → L4 260 f/s (dense). 35% density cost across layers, NTFS stays well under 200K/folder insert-cliff.
 
-- Commit the consolidation (user hasn't asked yet — confirm message/scope first).
-- Optional: verify `create_files_parallel.ps1` still runs cleanly from its new vNext2 location (it has no relative-path dependencies beyond `set_privs.psm1`, which is already in vNext2 and identical to the archived copy — diff showed no differences).
-- Optional: delete or prune `archive_vNext3_incomplete/PERFORMANCE_REPORT.md` since its numbers are fictional, or add a header note marking it as such.
+### Design handoff pack — `docs/demo-dataset/`
 
-## Watch-outs
+Four files written for designers + architects to build dashboards/reports on top of the dataset:
 
-- vNext3's `PERFORMANCE_REPORT.md` claims 10x / 152 files-sec — fictional. `OPTIMIZATION_SUMMARY.md` has the real 2.26x / 30.5 files-sec. If resurrecting any claim from the archive, use the latter.
-- `create_files_parallel.ps1` defines all helpers inline on purpose. `ForEach-Object -Parallel` runspaces don't inherit parent scope, so do **not** "clean it up" by extracting helpers into a module. Only `set_privs.psm1` is safe as an external module.
-- Don't reintroduce `-ClearExisting` on ACL edits — that caused Symphony `GDS_BAD_DIR_HANDLE` scan failures and was the whole reason vNext2 existed.
+- `README.md` — folder index + audience guide
+- `dataset-snapshot.md` — ground-truth numbers (counts, bytes, year histogram, per-dept table, ownership mix, ACL samples, sample paths per cohort, manifest schema)
+- `demo-narrative-and-widgets.md` — 9 demo storylines + widget specs (JSON) + SQL pseudo-queries + dashboard layout sketch + color/emphasis guidance
+- `build-recipe-and-caveats.md` — recipe rationale + per-layer perf + reproduction steps + the "don't say on stage" list (sparse vs. logical, no real content, Deadbeat is narrative-only, dates drift, etc.)
+
+All cross-link to raw sources: `build-10M.log`, `logs/manifest_*.jsonl`, `PanzuraDemo/config/default.psd1`, `docs/V4_SPEC.md`.
+
+## What's next when we resume
+
+1. **If the dataset is still intact** — nothing needs rebuilding. Hand the docs to the designer + architect, iterate on dashboard mockups.
+2. **If the build needs refreshing** (e.g., to re-age the Dormant/LegacyArchive 3–5 y peak relative to current date):
+
+   ```powershell
+   Import-Module 'C:\Users\Administrator\Documents\pan-demo-data\PanzuraDemo\PanzuraDemo.psd1' -Force
+   $cfg = Import-DemoConfig -Path default
+   Reset-DemoEnvironment -Config $cfg -IncludeShare -IncludeLegacyGroups -Confirm:$false
+   Get-ChildItem 'S:\Shared' -Force | ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+   pwsh -NoProfile -File 'C:\Users\Administrator\Documents\pan-demo-data\build-10M.ps1'
+   ```
+
+   Expect ~8.5 h wall clock. Monitor via `build-10M.log`.
+
+3. **If tuning the dataset shape** — edit `build-10M.ps1` L1–L4 knobs (see `docs/demo-dataset/build-recipe-and-caveats.md` for rationale on current choices).
+
+## Key technical notes (invariants — don't regress)
+
+- **Always pwsh, never powershell.** PanzuraDemo requires PS 7+; `powershell` 5.1 fails import silently.
+- **Do not use `-Parallel`** for file generation — measurably slower than sequential (decision #19).
+- **Do not reintroduce `Get-Acl` before `Set-Acl`** (decision #20); minimal `FileSecurity` or native P/Invoke is the right path.
+- **Native `SetNamedSecurityInfoW` P/Invoke** is wired in; 11× ACL speedup, +42% wall-clock (decision #23).
+- **Per-file write order is load-bearing.** New-Item → fsutil sparse → SetAttributes → Write ADS → Set owner → SetCreationTime/LastAccessTime/LastWriteTime ABSOLUTELY LAST. Writing any NTFS stream bumps LastWriteTime; stamping before ADS write contaminates ~15% of files with present-day dates.
+- **Dormant/LegacyArchive CT is hard-pinned to 3–5 y ago** in `New-DemoFile.ps1` (lines 347–351). This is why layered preset `MinDate` needed to be extended to -10 y — to avoid a cliff at the 3 y boundary where preset-drawn ages end and dormant pinning begins.
+
+## Decision log pointer
+
+Full history in `docs/V4_SPEC.md` §18 (decisions 1-24). Key entries:
+- #19: why `-Parallel` doesn't scale
+- #20: why deferred-ACL post-pass was walked back
+- #22: Set-Acl minimal FileSecurity → +11% sequential
+- #23: native `SetNamedSecurityInfoW` → +42% sequential
+- #24: v4.1 folder density expansion
